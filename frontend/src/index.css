@@ -804,9 +804,15 @@ main { display: block; }
   .site-header {
     flex-wrap: nowrap;
     row-gap: 0;
-    /* Taller header when nav is open is handled by flex-wrap on .header-inner */
+    justify-content: flex-start; /* override desktop space-between; margin-left:auto on actions handles alignment */
     align-items: center;
     padding: 0.75rem clamp(1rem, 4vw, 2rem);
+  }
+
+  .site-header.header--nav-open {
+    flex-wrap: wrap;
+    row-gap: 0;
+    align-items: center;
   }
 
   /* Navigation links: hidden until hamburger is opened */
@@ -854,22 +860,6 @@ main { display: block; }
     outline-offset: 2px;
   }
   .header-hamburger svg { display: block; }
-
-  /* When nav is open, the header becomes a flex column container for the inner row + nav */
-  .site-header.header--nav-open {
-    flex-wrap: wrap;
-    row-gap: 0;
-  }
-  /* The logo+actions row stays on one line inside the header */
-  .site-header.header--nav-open .header-logo,
-  .site-header.header--nav-open .header-actions,
-  .site-header.header--nav-open .header-hamburger {
-    /* nothing extra needed — they're siblings in the flex container */
-  }
-
-  /* cat-nav: adjust sticky top to account for taller header on tablet.
-     With hamburger, closed state = single row ≈ 68px (logo 46px + 2×0.75rem padding ≈ 58px → ~68px).
-     Keep --header-h = 68px; it's updated to 58px below only for --bp-small. */
 
   /* Actions: keep right-aligned, but shrink button text */
   .header-actions { margin-left: auto; flex-shrink: 0; }
@@ -928,8 +918,6 @@ main { display: block; }
 /* ---------- Mobile (≤520px) ---------- */
 @media (max-width: 520px) {
   /* Header: single-row, tighter */
-  :root { --header-h: 62px; }
-
   .site-header { padding: 0.65rem 1rem; }
   .logo { height: 38px; }
 
@@ -986,8 +974,6 @@ main { display: block; }
 
 /* ---------- Small phones (≤400px) ---------- */
 @media (max-width: 400px) {
-  :root { --header-h: 58px; }
-
   /* Footer wordmark: scale even more aggressively on SE-size screens */
   .footer-wordmark { font-size: 13vw; }
 
