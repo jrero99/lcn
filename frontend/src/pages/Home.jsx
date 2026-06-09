@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import Marquee from '../components/Marquee.jsx'
 
 export default function Home() {
@@ -38,9 +39,9 @@ export default function Home() {
           Carnes jugosas, opciones veggie, salsas caseras y pan que marca la
           diferencia.
         </p>
-        <a className="btn btn-outline" href="#carta-completa">
+        <Link className="btn btn-outline" to="/hacer-pedido">
           Descubre nuestra carta completa
-        </a>
+        </Link>
       </section>
 
       {/* MARQUEE */}
