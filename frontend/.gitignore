@@ -1,6 +1,22 @@
-node_modules
-dist
+# Frontend (React + Vite). El .gitignore raíz ya cubre la mayoría de reglas;
+# esto refuerza lo específico de esta carpeta.
+
+# Dependencias y builds
+node_modules/
+dist/
+.vite/
+
+# Entorno y secretos (permite plantillas .env.example)
 .env
-.env.local
+.env.*
+!.env.example
+
+# Logs y cachés
 *.log
+.eslintcache
+
+# Tests
+coverage/
+
+# OS
 .DS_Store

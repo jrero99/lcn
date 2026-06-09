@@ -1,26 +1,116 @@
-# Dependencies
-node_modules/
+# ==========================================================================
+# La Casa Nostra (LCN) — .gitignore
+# Regla de oro: NUNCA commitear secretos, claves, datos personales ni builds.
+# ==========================================================================
 
-# Builds
+# --- Dependencias -----------------------------------------------------------
+node_modules/
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# --- Builds / salidas -------------------------------------------------------
 dist/
 build/
+out/
+.next/
+.vite/
 
-# Environment / secrets
+# --- Entorno y SECRETOS ------------------------------------------------------
+# Ignora TODAS las variantes de .env...
 .env
-.env.local
-.env.*.local
+.env.*
+*.env
+# ...pero permite plantillas SIN valores reales (para documentar las vars):
+!.env.example
+!.env.sample
+!.env.template
 
-# Logs
+# --- Claves, certificados y credenciales ------------------------------------
+*.pem
+*.key
+*.crt
+*.cer
+*.der
+*.p12
+*.pfx
+*.p8
+*.keystore
+*.jks
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.gpg
+*.asc
+secrets.json
+secrets.*.json
+*.secret
+*.secrets
+credentials.json
+service-account*.json
+gha-creds-*.json
+
+# --- Base de datos / Prisma -------------------------------------------------
+# Dumps y BD locales (las migraciones de prisma/migrations SÍ se commitean)
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.sql
+*.dump
+*.bak
+# Si Prisma genera una shadow/local db dentro de prisma/
+prisma/*.db
+prisma/dev.db*
+
+# --- Datos de usuario / RGPD ------------------------------------------------
+# Subidas, adjuntos y exports con datos personales: nunca al repo.
+uploads/
+upload/
+storage/
+tmp/
+temp/
+exports/
+
+# --- Logs -------------------------------------------------------------------
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
-# OS / editor
+# --- Tests / cobertura ------------------------------------------------------
+coverage/
+.nyc_output/
+*.lcov
+
+# --- Cachés -----------------------------------------------------------------
+.cache/
+.parcel-cache/
+.turbo/
+.eslintcache
+.stylelintcache
+.npm/
+
+# --- Sistema operativo ------------------------------------------------------
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- Editores / IDE ---------------------------------------------------------
 .idea/
 .vscode/
-
-# Prisma / DB
-*.sqlite
+*.swp
+*.swo
+*~
+*.sublime-workspace
