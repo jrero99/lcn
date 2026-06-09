@@ -1,0 +1,370 @@
+/* ============================================================
+   La Casa Nostra — estilos de la landing
+   ============================================================ */
+
+/* Salo: font auto-allotjada (no és de Google Fonts). */
+@font-face {
+  font-family: "Salo";
+  src: url("./assets/fonts/Salo.otf") format("opentype");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+:root {
+  /* Marca */
+  --brand: #7a020e;
+  --brand-deep: #5d020a;
+  --cream: #f3e9d8;
+  --ink: #2b2118;
+  --muted: #8d8378;
+  --placeholder: #d6d6d6;
+  --bg: #ffffff;
+
+  /* Tipografías */
+  --font-heading: "Salo", "Roboto", system-ui, sans-serif;
+  --font-body: "Roboto", system-ui, -apple-system, sans-serif;
+
+  /* Layout */
+  --maxw: 1120px;
+
+  font-family: var(--font-body);
+  color: var(--ink);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  line-height: 1.6;
+}
+
+img { max-width: 100%; display: block; }
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+/* ---------- Botones ---------- */
+.btn {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 0.62rem 1.5rem;
+  border-radius: 999px;
+  border: 1.6px solid var(--brand);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+.btn-outline { background: transparent; color: var(--brand); }
+.btn-outline:hover { background: var(--brand); color: var(--cream); }
+.btn-solid { background: var(--brand); color: var(--cream); }
+.btn-solid:hover { background: var(--brand-deep); border-color: var(--brand-deep); }
+
+/* ---------- Logo ---------- */
+.logo {
+  display: block;
+  height: 46px;
+  width: auto;
+}
+.footer-brand .logo { height: 58px; margin-bottom: 0.4rem; }
+
+/* ---------- Header ---------- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.9rem clamp(1rem, 4vw, 2.5rem);
+  background: var(--bg);
+  border-bottom: 1px solid #f0ece6;
+}
+.header-logo { text-decoration: none; }
+.header-nav {
+  display: flex;
+  gap: clamp(1rem, 2.5vw, 2.2rem);
+  margin-left: auto;
+  margin-right: 0.5rem;
+}
+.nav-link {
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink);
+  transition: color 0.15s ease;
+}
+.nav-link:hover { color: var(--brand); }
+.header-actions { display: flex; gap: 0.6rem; }
+
+/* ---------- Layout secciones ---------- */
+main { display: block; }
+.section {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1rem, 4vw, 2.5rem);
+}
+.centered { text-align: center; }
+.section-title {
+  color: var(--brand);
+  font-size: clamp(1.5rem, 3.5vw, 2.1rem);
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+.section-text {
+  max-width: 620px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* ---------- Hero ---------- */
+.hero {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2.5rem) 0;
+  text-align: center;
+}
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  font-size: 0.72rem;
+  color: var(--ink);
+  margin: 0 0 0.5rem;
+}
+.hero-title {
+  color: var(--brand);
+  font-size: clamp(2.4rem, 7vw, 4rem);
+  text-transform: uppercase;
+}
+.hero-sub {
+  max-width: 480px;
+  margin: 0.8rem auto 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.hero-media {
+  margin-top: clamp(1.5rem, 4vw, 2.5rem);
+  height: clamp(220px, 30vw, 360px);
+  border-radius: 22px;
+}
+
+/* ---------- Placeholders de imagen ---------- */
+.placeholder { background: var(--placeholder); }
+
+/* ---------- Carta (polaroids) ---------- */
+.carta-photos {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: clamp(0.5rem, 2vw, 1.5rem);
+  margin-bottom: 2rem;
+  min-height: 240px;
+}
+.polaroid {
+  width: clamp(120px, 18vw, 200px);
+  height: clamp(150px, 22vw, 250px);
+  border-radius: 14px;
+  border: 8px solid #fff;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+}
+.polaroid-left { transform: rotate(-8deg); }
+.polaroid-center {
+  width: clamp(150px, 20vw, 230px);
+  height: clamp(180px, 24vw, 280px);
+  z-index: 2;
+}
+.polaroid-right { transform: rotate(8deg); }
+
+/* Botó "Descubre nuestra carta completa" */
+#carta > .btn { margin-top: 1.75rem; }
+
+/* ---------- Marquee ---------- */
+.marquee {
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 0.6rem 0;
+  border-top: 1px solid #f0ece6;
+  border-bottom: 1px solid #f0ece6;
+}
+.marquee-track {
+  display: inline-flex;
+  gap: 1.5rem;
+  animation: marquee 28s linear infinite;
+}
+.marquee-item {
+  font-family: var(--font-heading);
+  color: var(--brand);
+  font-size: 1.4rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.marquee-item::after { content: "·"; margin-left: 1.5rem; opacity: 0.5; }
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+}
+
+/* ---------- Dos columnas (local / trabaja) ---------- */
+.two-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(1rem, 3vw, 2rem);
+  margin-bottom: 2rem;
+  align-items: stretch;
+}
+.media-photo, .media-box {
+  min-height: clamp(220px, 28vw, 320px);
+  border-radius: 18px;
+}
+.work-panel {
+  background: #f3f3f3;
+  border-radius: 18px;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.6rem;
+}
+.work-title { text-align: left; margin-bottom: 0.3rem; }
+.work-lead { font-weight: 700; color: var(--ink); margin: 0; }
+.work-text { margin: 0; text-align: left; }
+.work-panel .btn { align-self: flex-start; margin-top: 0.6rem; }
+
+/* ---------- Cierre ---------- */
+.closing {
+  text-align: center;
+  padding: clamp(3rem, 7vw, 5rem) 1.5rem;
+}
+.closing p {
+  font-family: var(--font-heading);
+  color: var(--brand);
+  text-transform: uppercase;
+  font-size: clamp(1.3rem, 3.5vw, 2rem);
+  margin: 0.2rem 0;
+}
+
+/* ---------- Footer ---------- */
+.site-footer {
+  background: var(--brand);
+  color: var(--cream);
+  padding: clamp(2.5rem, 5vw, 4rem) clamp(1rem, 4vw, 2.5rem) 0;
+  overflow: hidden;
+}
+.footer-cols {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 2rem;
+}
+.site-footer h4 {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 1rem;
+  margin: 1.2rem 0 0.8rem;
+}
+.site-footer p { margin: 0.25rem 0; font-size: 0.9rem; }
+.footer-copy { margin-top: 1rem !important; opacity: 0.8; font-size: 0.8rem; }
+
+.footer-hours { list-style: none; padding: 0; margin: 0; }
+.footer-hours li { display: flex; flex-direction: column; margin-bottom: 0.7rem; font-size: 0.9rem; }
+.footer-hours strong { font-weight: 700; }
+.footer-hours span { opacity: 0.85; }
+
+.footer-links { list-style: none; padding: 0; margin: 0; }
+.footer-links li { margin-bottom: 0.55rem; }
+.footer-links a {
+  color: var(--cream);
+  text-decoration: none;
+  font-size: 0.9rem;
+  opacity: 0.92;
+}
+.footer-links a:hover { text-decoration: underline; }
+
+.footer-wordmark {
+  font-family: var(--font-heading);
+  color: var(--cream);
+  text-transform: uppercase;
+  text-align: center;
+  font-size: clamp(3rem, 16vw, 13rem);
+  line-height: 0.85;
+  margin-top: 1.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* ---------- Página: Hacer pedido (elección) ---------- */
+.order-choice {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 3.5rem) clamp(1rem, 5vw, 5rem);
+}
+.order-choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(1rem, 2.5vw, 2.25rem);
+}
+.order-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+  min-height: clamp(380px, 64vh, 720px);
+  padding: 2rem;
+  border: 1.5px solid var(--brand);
+  border-radius: 22px;
+  background: var(--bg);
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+.order-card:hover {
+  background: #fbf4f4;
+  transform: translateY(-3px);
+}
+.order-card-title {
+  color: var(--brand);
+  text-transform: uppercase;
+  font-size: clamp(1.4rem, 2.6vw, 2rem);
+  margin-bottom: 1.4rem;
+}
+.order-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 860px) {
+  .site-header { flex-wrap: wrap; row-gap: 0.75rem; }
+  .header-nav { order: 3; width: 100%; justify-content: center; margin: 0; }
+  .header-actions { margin-left: auto; }
+  .two-cols { grid-template-columns: 1fr; }
+  .order-choice-grid { grid-template-columns: 1fr; }
+  .order-card { min-height: 320px; }
+  .footer-cols { grid-template-columns: 1fr; gap: 1rem; }
+  .carta-photos .polaroid-left { transform: rotate(-5deg); }
+  .carta-photos .polaroid-right { transform: rotate(5deg); }
+}
+
+@media (max-width: 520px) {
+  .header-nav { gap: 1rem; }
+  .carta-photos { gap: 0.25rem; }
+}
