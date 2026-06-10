@@ -67,6 +67,18 @@ gha-creds-*.json
 prisma/*.db
 prisma/dev.db*
 
+# --- Originales de cámara / fotos sin optimizar -----------------------------
+# Los RAW/originales pesan ~100 MB cada uno y no deben entrar en git.
+# Optimízalos a tamaño web (frontend/src/assets/photos/) antes de usarlos.
+DSC*.png
+DSC*.PNG
+DSC*.jpg
+DSC*.JPG
+*.CR2
+*.NEF
+*.ARW
+*.dng
+
 # --- Datos de usuario / RGPD ------------------------------------------------
 # Subidas, adjuntos y exports con datos personales: nunca al repo.
 uploads/
