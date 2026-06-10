@@ -7,7 +7,8 @@ import Logo from './Logo.jsx'
 const NAV_LINKS = [
   { label: 'La Carta', href: '/#carta' },
   { label: 'Trabaja con Nosotros', href: '/#trabaja' },
-  { label: 'Iniciar Sesión', href: '/#login' },
+  // TODO: ruta /login cuando exista la página
+  { label: 'Iniciar Sesión', href: '#' },
 ]
 
 // Hamburger icon (three bars / close X) — inline SVG, no dependency.
@@ -100,7 +101,7 @@ export default function Header() {
 
       <div className="header-actions">
         <Link className="btn btn-outline" to="/hacer-pedido">Hacer pedido</Link>
-        <a className="btn btn-solid" href="/#reservar">Reservar</a>
+        <Link className="btn btn-solid" to="/reservar">Reservar</Link>
       </div>
 
       {/* Hamburger toggle — visible only on mobile/tablet via CSS */}

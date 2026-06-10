@@ -6,6 +6,7 @@ import HacerPedido from './pages/HacerPedido.jsx'
 import PedidoDatos from './pages/PedidoDatos.jsx'
 import OrderCatalog from './pages/OrderCatalog.jsx'
 import OrderConfirmation from './pages/OrderConfirmation.jsx'
+import Reservas from './pages/Reservas.jsx'
 
 // Flujo de pedido (los datos se piden ANTES del catálogo, porque la barra de
 // checkout muestra la dirección durante la navegación):
@@ -33,6 +34,9 @@ export default function App() {
 
           {/* Step 3: confirmation (pago contra reembolso) */}
           <Route path="/hacer-pedido/confirmar" element={<OrderConfirmation />} />
+
+          {/* Reservations — step 1: date/time/zone/guests form */}
+          <Route path="/reservar" element={<Reservas />} />
         </Routes>
       </main>
       <Footer />

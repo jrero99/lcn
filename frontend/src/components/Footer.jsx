@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import Logo from './Logo.jsx'
 
 const HOURS = [
@@ -7,15 +8,23 @@ const HOURS = [
   { day: 'Domingo', time: '11:00 – 16:00' },
 ]
 
-const PAGES = [
-  'Hacer pedido',
-  'Reservar',
-  'La Carta',
-  'Trabaja con Nosotros',
-  'Política de Privacidad',
-  'Aviso Legal',
-  'Política de Cookies',
-  'Condiciones de venta',
+// Pages column links.
+// - Internal SPA routes use <Link to="...">.
+// - Home-section anchors use <a href="/#..."> (full URL so they work from any page).
+// - Pages not yet built stay as href="#" with a TODO comment.
+const PAGE_LINKS = [
+  { label: 'Hacer pedido',        type: 'link',   to: '/hacer-pedido' },
+  { label: 'Reservar',            type: 'link',   to: '/reservar' },
+  { label: 'La Carta',            type: 'anchor', href: '/#carta' },
+  { label: 'Trabaja con Nosotros',type: 'anchor', href: '/#trabaja' },
+  // TODO: create /politica-privacidad page
+  { label: 'Política de Privacidad', type: 'pending' },
+  // TODO: create /aviso-legal page
+  { label: 'Aviso Legal',         type: 'pending' },
+  // TODO: create /politica-cookies page
+  { label: 'Política de Cookies', type: 'pending' },
+  // TODO: create /condiciones-venta page
+  { label: 'Condiciones de venta',type: 'pending' },
 ]
 
 export default function Footer() {
@@ -45,8 +54,19 @@ export default function Footer() {
         <div className="footer-col">
           <h4>Páginas</h4>
           <ul className="footer-links">
-            {PAGES.map((p) => (
-              <li key={p}><a href="#">{p}</a></li>
+            {PAGE_LINKS.map((p) => (
+              <li key={p.label}>
+                {p.type === 'link' && (
+                  <Link to={p.to}>{p.label}</Link>
+                )}
+                {p.type === 'anchor' && (
+                  <a href={p.href}>{p.label}</a>
+                )}
+                {p.type === 'pending' && (
+                  // TODO: link to real page once built
+                  <a href="#">{p.label}</a>
+                )}
+              </li>
             ))}
           </ul>
         </div>
