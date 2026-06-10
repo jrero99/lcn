@@ -14,7 +14,7 @@ export const BUSINESS = {
   // Domicilio fiscal / del establecimiento.
   address: 'Ronda de Sant Oleguer, 31, Bajos 1, 08304 Mataró, Barcelona',
   // Email de contacto para clientes y para ejercer derechos RGPD.
-  email: '[EMAIL DE CONTACTO]',
+  email: 'lacasanostramataro@gmail.com',
   phone: '+34 614 52 25 81',
   // Solo si es sociedad mercantil (S.L., S.A.…). Déjalo vacío si es autónomo.
   registry: '[DATOS DE INSCRIPCIÓN EN EL REGISTRO MERCANTIL — solo sociedades]',

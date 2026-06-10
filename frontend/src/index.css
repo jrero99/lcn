@@ -431,6 +431,8 @@ img.media-box {
   opacity: 0.92;
 }
 .footer-links a:hover { text-decoration: underline; }
+.footer-email { color: var(--cream); text-decoration: none; }
+.footer-email:hover { text-decoration: underline; }
 
 .footer-wordmark {
   font-family: var(--font-heading);

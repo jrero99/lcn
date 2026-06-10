@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import Logo from './Logo.jsx'
+import { BUSINESS } from '../data/business.js'
 
 const HOURS = [
   { day: 'Miércoles a jueves', time: '18:00 – 23:30' },
@@ -31,6 +32,7 @@ export default function Footer() {
           <Logo variant="cream" />
           <h4>Contáctanos</h4>
           <p>+ 614 52 25 81</p>
+          <p><a className="footer-email" href={`mailto:${BUSINESS.email}`}>{BUSINESS.email}</a></p>
           <p>Ronda de Sant Oleguer, 31, Bajos 1,<br />08304 Mataró, Barcelona</p>
           <p className="footer-copy">La Casa Nostra 2026 © - Copyright</p>
         </div>
