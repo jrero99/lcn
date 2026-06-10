@@ -1,6 +1,46 @@
 // Mock data for the order catalog.
 // TODO: Replace with real API call to GET /api/catalog (backend endpoint not yet defined).
 // Each product has an optional `allergens` array (EU legal requirement for food menus).
+//
+// Products may also have an optional `options` field — an array of option groups
+// rendered as radio groups in the product detail modal.
+// TODO (backend-node): the real GET /api/catalog response must include `options` per
+// product when applicable. Shape:
+//   options: Array<{
+//     id: string,
+//     label: string,          // group heading shown in the modal
+//     type: 'single',         // only 'single' (radio) supported for now
+//     choices: Array<{ id: string, label: string }>
+//   }>
+//
+// The mock options below are representative examples for burgers only.
+// All other categories have no options (simple add-to-cart, no customisation).
+
+// Shared option groups reused across all burgers (mock data only)
+const BURGER_OPTIONS = [
+  {
+    id: 'side',
+    label: 'Elige tu acompañante',
+    type: 'single',
+    choices: [
+      { id: 'bravas', label: 'Bravas' },
+      { id: 'fries', label: 'Fritas' },
+    ],
+  },
+  {
+    id: 'sauce',
+    label: 'Elige tu salsa',
+    type: 'single',
+    choices: [
+      { id: 'brava', label: 'Brava' },
+      { id: 'alioli', label: 'Alioli' },
+      { id: 'bbq', label: 'BBQ' },
+      { id: 'caesar', label: 'César' },
+      { id: 'honey-mustard', label: 'Mostaza y miel' },
+      { id: 'none', label: 'Sin salsa' },
+    ],
+  },
+]
 
 export const CATEGORIES = [
   {
@@ -91,6 +131,8 @@ export const CATEGORIES = [
         description: 'Carne de ternera, queso cheddar, lechuga, tomate y salsa de la casa.',
         price: 8.50,
         allergens: ['gluten', 'lácteos', 'huevos', 'sésamo'],
+        // TODO: mock options — will come from GET /api/catalog (coordinate with backend-node)
+        options: BURGER_OPTIONS,
       },
       {
         id: 'b2',
@@ -98,6 +140,8 @@ export const CATEGORIES = [
         description: 'Carne de ternera, jalapeños, cheddar ahumado, cebolla caramelizada y salsa sriracha.',
         price: 9.00,
         allergens: ['gluten', 'lácteos'],
+        // TODO: mock options — will come from GET /api/catalog (coordinate with backend-node)
+        options: BURGER_OPTIONS,
       },
       {
         id: 'b3',
@@ -105,6 +149,8 @@ export const CATEGORIES = [
         description: 'Dos hamburguesas de ternera, doble cheddar, bacon crujiente y todos los acompañamientos.',
         price: 11.50,
         allergens: ['gluten', 'lácteos', 'sésamo'],
+        // TODO: mock options — will come from GET /api/catalog (coordinate with backend-node)
+        options: BURGER_OPTIONS,
       },
       {
         id: 'b4',
@@ -112,6 +158,8 @@ export const CATEGORIES = [
         description: 'Carne de ternera, bacon ahumado, salsa BBQ y cebolla frita crujiente.',
         price: 9.50,
         allergens: ['gluten', 'lácteos', 'soja'],
+        // TODO: mock options — will come from GET /api/catalog (coordinate with backend-node)
+        options: BURGER_OPTIONS,
       },
     ],
   },

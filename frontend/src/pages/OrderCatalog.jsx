@@ -7,12 +7,19 @@
 // TODO: Lift cart state up or move to Context/Zustand when checkout page is built.
 // TODO: Replace CATEGORIES mock data with a real API call: GET /api/catalog
 //       (endpoint not yet defined; coordinate with backend-node).
+//       The API response must include the `options` field per product (see catalogMockData.js).
+//
+// TODO (cart keying): currently the cart is keyed by product.id. Products with different
+// option selections are treated as the same cart line (quantity increments). In the future,
+// when the backend supports order lines with variants, each distinct combination of
+// product + options should be a separate cart line (key = productId + serialised selections).
 
 import { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CATEGORIES } from '../data/catalogMockData.js'
 import CategoryNav from '../components/CategoryNav.jsx'
 import ProductCard from '../components/ProductCard.jsx'
+import ProductModal from '../components/ProductModal.jsx'
 import CheckoutBar from '../components/CheckoutBar.jsx'
 
 export default function OrderCatalog({ mode = 'domicilio' }) {
@@ -20,10 +27,14 @@ export default function OrderCatalog({ mode = 'domicilio' }) {
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0].id)
   // cart: { [productId]: { product, quantity } }
   const [cart, setCart] = useState({})
+  // selectedProduct: the product whose detail modal is currently open, or null
+  const [selectedProduct, setSelectedProduct] = useState(null)
   const sectionRefs = useRef({})
 
-  // Add one unit of a product to the cart
-  const handleAddToCart = useCallback((product) => {
+  // Add one unit of a product to the cart.
+  // `_options` is captured from the modal but currently ignored for cart keying
+  // (see TODO at the top of this file).
+  const handleAddToCart = useCallback((product, _options) => {
     setCart((prev) => {
       const existing = prev[product.id]
       return {
@@ -34,6 +45,16 @@ export default function OrderCatalog({ mode = 'domicilio' }) {
         },
       }
     })
+  }, [])
+
+  // Open the product detail modal
+  const handleOpenProduct = useCallback((product) => {
+    setSelectedProduct(product)
+  }, [])
+
+  // Close the product detail modal
+  const handleCloseModal = useCallback(() => {
+    setSelectedProduct(null)
   }, [])
 
   // Change active category and scroll to its section
@@ -99,6 +120,7 @@ export default function OrderCatalog({ mode = 'domicilio' }) {
                   key={product.id}
                   product={product}
                   onAdd={handleAddToCart}
+                  onOpen={handleOpenProduct}
                 />
               ))}
             </div>
@@ -113,6 +135,15 @@ export default function OrderCatalog({ mode = 'domicilio' }) {
         onChangeAddress={handleChangeAddress}
         onCheckout={handleCheckout}
       />
+
+      {/* Product detail modal — rendered when a card is clicked */}
+      {selectedProduct && (
+        <ProductModal
+          product={selectedProduct}
+          onClose={handleCloseModal}
+          onAdd={handleAddToCart}
+        />
+      )}
     </div>
   )
 }
