@@ -22,6 +22,8 @@ es la app **React** en `frontend/`.
 - No inventes contratos de API: consulta los endpoints vigentes en `.claude/AGENT_LOG.md`. Si necesitas un endpoint que no existe, coordínate dejando una nota para `backend-node`.
 - Muestra alérgenos en la carta (requisito del dominio).
 - Código y commits en inglés.
+- **Modales**: existe un componente base genérico en `frontend/src/components/Modal.jsx` (props: `isOpen`, `onClose`, `title`, `message`, `children`). Reutilízalo para cualquier diálogo o confirmación. No crees modales ad-hoc nuevos.
+- **CSS de modales**: `ProductModal` usa `.product-modal-backdrop`; `Modal` genérico usa `.modal-backdrop`. Mantén esta separación para evitar conflictos de cascada.
 
 ## Coordinación
 - Antes de empezar, lee `CLAUDE.md` y la sección de contratos de API en `.claude/AGENT_LOG.md`.

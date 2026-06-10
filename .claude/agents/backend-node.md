@@ -28,3 +28,10 @@ es la API **Node.js + Express** en `backend/`.
 - **Cada vez que crees o cambies un endpoint o el modelo de datos, anótalo en `.claude/AGENT_LOG.md`** (contrato: método, ruta, body, respuesta). Es lo que el `frontend-react` necesita para integrarse.
 - Para decisiones de auth/validación/RGPD, alinéate con `security-expert`.
 - Solicita tests de integración al `testing-expert`.
+
+## Contratos de API pendientes (consumidos por el front aunque no implementados aún)
+
+- `GET /api/catalog` — respuesta: array de productos con campos `id, name, description, price, allergens[], options[]`. El campo `options` es un array de grupos `{ groupName, items: string[] }`. Ver `frontend/src/data/catalogMockData.js` para la forma exacta que el front espera.
+- `POST /api/orders` — body: `{ items[], total, mode, address?, paymentMethod }`. Respuesta mínima: `{ orderId }`. Puedes añadir de forma **opcional** `confirmationTitle` y `confirmationMessage` (strings): el front los pasará como props al componente `Modal` de confirmación. Si están ausentes, el Modal usa sus textos por defecto, así que son totalmente opcionales.
+- `POST /api/reservations` — body: `{ date, time, zone, guests }`. Respuesta: `{ availableSlots[] }`. El front tiene el punto de integración marcado con `// TODO` en `Reservas.jsx`.
+- El modelo de pedido debe incluir campo `paymentMethod` (CARD / CASH). No hay cobro online; el pago es al recibir.
