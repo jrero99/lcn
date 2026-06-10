@@ -238,6 +238,12 @@ main { display: block; }
   min-height: clamp(220px, 28vw, 320px);
   border-radius: 18px;
 }
+img.media-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 .work-panel {
   background: #f3f3f3;
   border-radius: 18px;
@@ -569,20 +575,25 @@ main { display: block; }
   gap: clamp(0.75rem, 2vw, 1.25rem);
 }
 
-/* --- Targeta de producte --- */
+/* --- Targeta de producte (text-only, sense imatge) --- */
 .product-card {
   display: flex;
-  flex-direction: row;
-  align-items: stretch;
+  flex-direction: column;
   border: 1.5px solid #e8e2db;
   border-radius: 16px;
   background: var(--bg);
   overflow: hidden;
+  cursor: pointer;
+  /* prefers-reduced-motion: only transform/shadow, no entry animation */
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 .product-card:hover {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.09);
   transform: translateY(-2px);
+}
+.product-card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .product-card-body {
@@ -618,36 +629,28 @@ main { display: block; }
 }
 .allergen-label { font-weight: 700; }
 
+/* Footer de la targeta: preu a l'esquerra, botó "+" a la dreta */
+.product-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
 .product-card-price {
   font-family: var(--font-heading);
   color: var(--brand);
   font-size: clamp(0.9rem, 1.5vw, 1.05rem);
   font-weight: 700;
   margin: 0;
-  margin-top: auto;
-  padding-top: 0.4rem;
 }
 
-/* Bloc de la imatge (lateral dret de la targeta) */
-.product-card-image-wrap {
-  position: relative;
-  flex-shrink: 0;
-  width: clamp(90px, 22%, 130px);
-}
-
-.product-card-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* Botó "+" circular per afegir al carret */
+/* Botó "+" circular per afegir al carret (quick-add, no obre el modal) */
 .product-card-add {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  width: 32px;
-  height: 32px;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: var(--brand);
   color: var(--cream);
@@ -666,6 +669,238 @@ main { display: block; }
   transform: scale(1.12);
 }
 .product-card-add:active { transform: scale(0.96); }
+
+/* ---------- Modal de ficha de producte (ProductModal) ---------- */
+
+/* Backdrop: covers full viewport, above catalog (z-index 70 > checkout-bar 60).
+   Uses a dedicated class (.product-modal-backdrop) to avoid conflicts with the
+   generic .modal-backdrop used by Modal.jsx (which is centred, not a bottom sheet). */
+.product-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(43, 33, 24, 0.55);
+  display: flex;
+  align-items: flex-end;  /* bottom sheet on mobile */
+  justify-content: center;
+  padding: 0;
+  /* Entry animation (sheet slides up). Skipped if prefers-reduced-motion. */
+  animation: product-backdrop-fade-in 0.2s ease forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-modal-backdrop { animation: none; }
+}
+@keyframes product-backdrop-fade-in {
+  from { background: rgba(43, 33, 24, 0); }
+  to   { background: rgba(43, 33, 24, 0.55); }
+}
+
+/* Dialog card */
+.product-modal {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90dvh;  /* leaves a sliver of backdrop visible on desktop */
+  background: var(--bg);
+  border-radius: 24px 24px 0 0;  /* bottom sheet on mobile */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Slide-up entry */
+  animation: product-modal-slide-up 0.28s cubic-bezier(0.34, 1.1, 0.64, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-modal { animation: none; }
+}
+@keyframes product-modal-slide-up {
+  from { transform: translateY(100%); opacity: 0.4; }
+  to   { transform: translateY(0);    opacity: 1;   }
+}
+
+/* On wider screens (≥560px) the modal floats centred as a card */
+@media (min-width: 560px) {
+  .product-modal-backdrop {
+    align-items: center;
+    padding: 1.5rem;
+  }
+  .product-modal {
+    border-radius: 20px;
+    max-height: 85vh;
+  }
+}
+
+/* Close button — absolute top-right.
+   Desktop: 36px (small, unobtrusive). Mobile (≤520px): grows to 44px tap target. */
+.modal-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #f0ece6;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+.modal-close-btn:hover { background: #e4ddd2; color: var(--ink); }
+.modal-close-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Scrollable content area */
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  padding-top: 3rem;  /* leave space below the close button */
+  padding-bottom: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.modal-product-name {
+  font-family: var(--font-heading);
+  color: var(--brand);
+  font-size: clamp(1.25rem, 4vw, 1.75rem);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0;
+  line-height: 1.15;
+}
+
+.modal-product-desc {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.modal-product-allergens {
+  font-size: 0.78rem;
+  color: var(--muted);
+  opacity: 0.8;
+  margin: 0;
+}
+
+/* Option group: fieldset with legend + radio choices */
+.modal-option-group {
+  border: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+}
+.modal-option-legend {
+  font-family: var(--font-heading);
+  color: var(--ink);
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0;
+  margin-bottom: 0.65rem;
+}
+.modal-option-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Radio option: pill-shaped label. The real <input> is visually hidden but
+   remains in the DOM for full keyboard/AT accessibility. */
+.radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.9rem;
+  border: 1.5px solid #ddd6cc;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 0.85rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  user-select: none;
+}
+.radio-option:hover { border-color: var(--brand); }
+.radio-option--checked {
+  border-color: var(--brand);
+  background: rgba(122, 2, 14, 0.06);
+  color: var(--brand);
+}
+
+/* Visually-hidden real radio input */
+.radio-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+
+/* Custom round indicator (mimics the check-box but circular) */
+.radio-circle {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #cdc6ba;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.radio-option--checked .radio-circle {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+.radio-option--checked .radio-circle::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--cream);
+}
+/* Focus ring on the label when the hidden input is focused */
+.radio-option input[type="radio"]:focus-visible ~ .radio-circle {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.radio-label-text { line-height: 1.2; }
+
+/* Sticky footer inside the modal: price + CTA button */
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: clamp(0.9rem, 3vw, 1.25rem) clamp(1.25rem, 4vw, 2rem);
+  border-top: 1px solid #f0ece6;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.modal-price {
+  font-family: var(--font-heading);
+  color: var(--brand);
+  font-size: clamp(1.35rem, 4vw, 1.65rem);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.modal-add-btn {
+  /* Inherits .btn .btn-solid; override padding for this context */
+  padding: 0.7rem 1.6rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
 
 /* --- Barra de checkout fixa a la part inferior --- */
 .checkout-bar {
@@ -789,6 +1024,272 @@ main { display: block; }
   margin-top: 2.2rem;
 }
 
+/* ---------- Modal ---------- */
+
+/* Semi-transparent backdrop that covers the whole viewport */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(43, 33, 24, 0.55); /* --ink at 55% opacity */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem; /* ensures panel never touches viewport edge on small screens */
+  /* Subtle fade-in */
+  animation: modal-fade-in 0.18s ease;
+}
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop { animation: none; }
+}
+
+/* The white card panel */
+.modal-panel {
+  position: relative;
+  background: var(--bg);
+  border-radius: 22px;
+  padding: clamp(2rem, 6vw, 3rem) clamp(1.5rem, 5vw, 2.5rem);
+  max-width: 520px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(43, 33, 24, 0.22);
+  /* Slide-up entrance */
+  animation: modal-panel-slide-up 0.22s ease;
+}
+@keyframes modal-panel-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-panel { animation: none; }
+}
+
+/* Close (X) button — top-right corner */
+.modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.modal-close:hover {
+  color: var(--ink);
+  background: #f3ece4;
+}
+.modal-close:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Modal heading — brand color, heading font */
+.modal-title {
+  font-family: var(--font-heading);
+  color: var(--brand);
+  text-transform: uppercase;
+  font-size: clamp(1.4rem, 5vw, 2rem);
+  letter-spacing: 0.03em;
+  margin-bottom: 1rem;
+  /* Leave space so the title doesn't overlap the close button */
+  padding-right: 2rem;
+}
+
+/* Body paragraph */
+.modal-message {
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+/* ---------- Página: Haz tu reserva ---------- */
+.reservas {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2.5rem);
+}
+
+.reservas-inner {
+  max-width: 680px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.reservas-title {
+  color: var(--brand);
+  text-transform: uppercase;
+  font-size: clamp(1.8rem, 4.5vw, 2.8rem);
+  margin-bottom: 0.75rem;
+}
+
+.reservas-sub {
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  margin: 0 0 2rem;
+}
+
+/* The form fills the inner column */
+.reservas-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* 2-column grid for the 4 fields */
+.reservas-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+/* Wrapper that holds the field + its error message */
+.reservas-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+/* Pill-shaped field: icon + input/select */
+.reservas-field {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0 1.1rem;
+  height: 52px; /* ensures tap target ≥44px */
+  border: 1.5px solid #e3ddd3;
+  border-radius: 999px;
+  background: var(--bg);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.reservas-field:focus-within {
+  border-color: var(--brand);
+}
+
+.reservas-field-icon {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* Input and select inside the pill */
+.reservas-field input,
+.reservas-field select {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 0; /* prevent overflow on small containers */
+}
+
+/* Muted color for placeholder (empty) selects */
+.reservas-field select:invalid {
+  color: var(--muted);
+}
+
+/* Full-width solid search CTA */
+.reservas-search-btn {
+  width: 100%;
+  padding: 1rem;
+  border: none;
+  border-radius: 12px;
+  background: var(--brand);
+  color: var(--cream);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(122, 2, 14, 0.18);
+  transition: background 0.15s ease;
+  min-height: 52px;
+}
+.reservas-search-btn:hover {
+  background: var(--brand-deep);
+}
+.reservas-search-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+
+/* Inline feedback while the "searching" placeholder is active */
+.reservas-searching-hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+  margin: 0;
+}
+
+/* Horizontal rule divider between form and WhatsApp CTA */
+.reservas-divider {
+  width: 100%;
+  height: 1px;
+  background: #ede8e0;
+  margin: 1.75rem 0 1.25rem;
+}
+
+/* Helper text above the WhatsApp button */
+.reservas-group-text {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0 0 1.1rem;
+  line-height: 1.55;
+  text-align: center;
+}
+
+/* WhatsApp button — dark green pill */
+.reservas-whatsapp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem 1.75rem;
+  border-radius: 999px;
+  background: #1a7a3c; /* WhatsApp green — intentionally not --brand */
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  min-height: 48px;
+  transition: background 0.15s ease, transform 0.12s ease;
+  box-shadow: 0 4px 12px rgba(26, 122, 60, 0.22);
+}
+.reservas-whatsapp-btn:hover {
+  background: #155e2e;
+  transform: translateY(-1px);
+}
+.reservas-whatsapp-btn:focus-visible {
+  outline: 2px solid #1a7a3c;
+  outline-offset: 3px;
+}
+
+.reservas-whatsapp-icon {
+  flex-shrink: 0;
+}
+
 /* ==========================================================
    RESPONSIVE
    Breakpoints:
@@ -887,12 +1388,10 @@ main { display: block; }
   /* Catalog: 2 columns on tablet */
   .product-grid { grid-template-columns: repeat(2, 1fr); }
 
-  /* "+" button: grow to 44px touch target on tablet */
+  /* "+" button: grow to 40px touch target on tablet */
   .product-card-add {
     width: 40px;
     height: 40px;
-    bottom: 6px;
-    right: 6px;
   }
 
   /* Checkout bar: stack vertically so content is not clipped */
@@ -913,6 +1412,13 @@ main { display: block; }
      Stacked bar is roughly: label(~18px) + address(~20px) + gap(~8px) +
      right-row(~44px) + paddings(~34px) ≈ 124px. Round up to 130px. */
   .order-catalog { padding-bottom: 130px; }
+
+  /* Reservas: 2-col grid → 1-col on tablet */
+  .reservas-grid { grid-template-columns: 1fr; }
+
+  /* Prevent iOS auto-zoom on focus */
+  .reservas-field input,
+  .reservas-field select { font-size: 1rem; }
 }
 
 /* ---------- Mobile (≤520px) ---------- */
@@ -942,15 +1448,10 @@ main { display: block; }
   /* Catalog: 1 column */
   .product-grid { grid-template-columns: 1fr; }
 
-  /* Product card image: fixed width so it doesn't dominate on 1-col layout */
-  .product-card-image-wrap { width: 100px; }
-
   /* "+" button: full 44px touch target on mobile */
   .product-card-add {
     width: 44px;
     height: 44px;
-    bottom: 4px;
-    right: 4px;
     font-size: 1.5rem;
   }
 
@@ -970,6 +1471,18 @@ main { display: block; }
 
   /* Confirm actions: stack buttons */
   .confirm-actions { flex-direction: column; align-items: center; }
+
+  /* ProductModal close button: grow to 44px tap target on mobile */
+  .modal-close-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* checkout-bar "Cambiar" button: ensure 44px tap target on mobile */
+  .checkout-bar-change-btn {
+    min-height: 44px;
+    padding: 0.5rem 1rem;
+  }
 }
 
 /* ---------- Small phones (≤400px) ---------- */
