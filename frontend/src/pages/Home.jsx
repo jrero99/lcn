@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import Marquee from '../components/Marquee.jsx'
+import localPhoto from '../assets/local.png'
 
 export default function Home() {
   return (
@@ -50,7 +51,11 @@ export default function Home() {
       {/* EL LOCAL */}
       <section className="section" id="local">
         <div className="two-cols">
-          <div className="placeholder media-photo" role="img" aria-label="El local (pendiente)" />
+          <img
+            src={localPhoto}
+            alt="Terraza y entrada de La Casa Nostra en Mataró"
+            className="media-photo"
+          />
           <div className="placeholder media-box" />
         </div>
         <div className="centered">
@@ -73,7 +78,7 @@ export default function Home() {
               En La Casa Nostra siempre buscamos gente con actitud, ganas y pasión
               por lo que hace.
             </p>
-            <a className="btn btn-outline" href="#empleo">Únete al equipo</a>
+            <a className="btn btn-outline" href="#trabaja">Únete al equipo</a>
           </div>
           <div className="placeholder media-box" />
         </div>
