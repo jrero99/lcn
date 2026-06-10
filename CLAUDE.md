@@ -50,13 +50,16 @@ de este repositorio es en **castellano**.
 | Base datos  | **PostgreSQL + Prisma (ORM)**                           |
 | Auth        | JWT + hashing de contraseñas (bcrypt/argon2)            |
 | Pagos       | **Sin pasarela online.** Pago contra reembolso: tarjeta o efectivo al repartidor en la entrega |
-| Hosting     | **Solo local de momento** (desarrollo). Sin despliegue. |
+| Hosting     | Desarrollo local + **frontend desplegado en GitHub Pages** vía GitHub Actions: https://jrero99.github.io/lcn/. El backend aún no se despliega (sigue local). |
 | Tests       | Frontend: Vitest + React Testing Library. Backend: Jest + Supertest |
 
 > **Decisiones confirmadas (2026-06-09):** BD = PostgreSQL + Prisma · Pago = al
-> repartidor (tarjeta/efectivo), sin pasarela online · Hosting = solo local.
-> No introduzcas integraciones de pago (Stripe, etc.) ni configuración de
-> despliegue salvo que el usuario lo pida explícitamente.
+> repartidor (tarjeta/efectivo), sin pasarela online · Hosting = frontend en
+> GitHub Pages (https://jrero99.github.io/lcn/) vía GitHub Actions; backend sin
+> despliegue por ahora.
+> No introduzcas integraciones de pago (Stripe, etc.). El deploy de GitHub Pages
+> está adoptado; no añadas otros despliegues (backend, cloud, VPS, etc.) sin que
+> el usuario lo pida explícitamente.
 
 ## 3. Estructura de carpetas (objetivo)
 
@@ -133,6 +136,17 @@ El `knowledge-coordinator` lee ese registro y mantiene al resto al día.
 
 ## 7. Estado actual
 
-🚧 **Proyecto recién iniciado**. Aún no hay código de aplicación, solo el
-contexto y los agentes. Decisiones de stack ya confirmadas (sección 2).
-Próximo paso: andamiar `frontend/` (React) y `backend/` (Node/Express + Prisma + PostgreSQL).
+**Frontend React: en curso.** Páginas implementadas y construidas:
+- `Home` (landing): hero, "Sobre nosotros", carta (polaroids), marquee, local (foto real `local.png`), empleo.
+- Flujo de pedido completo: `HacerPedido` → `PedidoDatos` → `OrderCatalog` (13 categorías, mock data, alérgenos, `ProductModal` ficha de producto) → `OrderConfirmation` (abre `Modal` genérico con resumen + nota pago al recibir).
+- Página `Reservas` (paso 1): formulario fecha/hora/zona/personas; datos mock; punto de integración con `POST /api/reservations` marcado con TODO.
+- Componente `Modal` genérico reutilizable (`frontend/src/components/Modal.jsx`): props `isOpen`, `onClose`, `title`, `message`, `children`. Preparado para recibir `confirmationTitle`/`confirmationMessage` desde `POST /api/orders` como props opt-in (con defaults si ausentes). **Todos los diálogos/confirmaciones futuros deben reusar este componente.**
+- Diseño responsive completado: breakpoints 860px / 520px / 400px; menú hamburguesa accesible; targets táctiles 44px; sin overflow a 360px.
+- Deploy: GitHub Pages https://jrero99.github.io/lcn/ vía `.github/workflows/deploy.yml`. Vite `base: '/lcn/'` en CI; React Router con `basename`. `dist/404.html` como fallback SPA.
+
+**Pendiente de construir:**
+- Páginas Login / Registro (enlace header apunta a `#` con TODO).
+- Imágenes reales: hero y polaroids de la carta (3 fotos). La foto del local ya está integrada (`local.png`; pendiente optimización a `.webp`, ~1 MB).
+- Fuente Salo auto-alojada en `frontend/src/assets/fonts/` (`@font-face` comentado en `index.css`).
+
+**Backend Node/Express + Prisma:** aún sin andamiar. Catálogo y carrito usan mock data en cliente. Contratos pendientes: `GET /api/catalog` (debe incluir campo `options[]`), `POST /api/orders` (puede devolver `confirmationTitle?`/`confirmationMessage?` opcionales para el Modal), `POST /api/reservations`. Ver tabla completa en `.claude/AGENT_LOG.md` sección "Estado consolidado".

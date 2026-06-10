@@ -24,26 +24,172 @@ arquitectura, cambias el modelo de datos, o detectas un riesgo de seguridad/QA.
 ---
 
 ## Estado consolidado (mantiene `knowledge-coordinator`)
+_Última consolidación: 2026-06-10_
 
 ### Contratos de API vigentes
-_(vacío — aún no hay endpoints ni pantallas que los consuman)_
+Ningún endpoint implementado aún. Contratos pendientes de definir cuando se andamie el backend:
+
+| Método | Ruta | Body (request) | Respuesta esperada | Estado |
+|--------|------|----------------|--------------------|--------|
+| GET | `/api/catalog` | — | `[{ id, name, description, price, allergens[], options[] }]` | Pendiente. Forma exacta documentada en `catalogMockData.js`. |
+| POST | `/api/orders` | `{ items[], total, mode, address?, paymentMethod }` | `{ orderId, confirmationTitle?, confirmationMessage? }` | Pendiente. `confirmationTitle`/`confirmationMessage` son opcionales; el front los pasa como props al `Modal` con defaults si ausentes. |
+| POST | `/api/reservations` | `{ date, time, zone, guests }` | `{ availableSlots[] }` | Pendiente. Punto de integración marcado con `// TODO` en `Reservas.jsx`. |
 
 ### Modelo de datos vigente
-_(vacío — BD por definir)_
+_(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
+- El pedido debe incluir campo `paymentMethod` (CARD / CASH) — pago al recibir, sin cobro online.
+- Catálogo: campo `options` por producto (grupos de opciones con nombre e items seleccionables). Ver `catalogMockData.js` para estructura exacta.
 
 ### Decisiones de arquitectura
 - Stack: React (front) + Node/Express (back).
 - **BD: PostgreSQL + Prisma (ORM).**
-- **Pago: sin pasarela online.** Contra reembolso (tarjeta o efectivo al repartidor).
-  El pedido guarda el método elegido; no hay cobro en la web.
-- **Hosting: solo local** (desarrollo). Sin configuración de despliegue.
+- **Pago: sin pasarela online.** Contra reembolso (tarjeta o efectivo al repartidor). El pedido guarda el método elegido; no hay cobro en la web.
+- **Hosting: frontend en GitHub Pages** (https://jrero99.github.io/lcn/) vía GitHub Actions (`.github/workflows/deploy.yml`). Backend sin despliegue por ahora (sigue local).
+- **Modales en el front**: existe un `Modal` genérico y accesible en `frontend/src/components/Modal.jsx`. Reusar para todos los diálogos/confirmaciones; no crear modales ad-hoc nuevos.
+- **Separación de clases CSS de modales**: `ProductModal` (bottom-sheet) usa `.product-modal-backdrop`; `Modal` genérico usa `.modal-backdrop`. Nombres distintos para evitar conflicto de cascada.
 
 ### Deuda / riesgos abiertos
-- _(ninguno pendiente de decisión por ahora)_
+- Número de WhatsApp real del negocio pendiente (placeholder `34XXXXXXXXX` en `Reservas.jsx`).
+- Imágenes reales pendientes: hero, polaroids de la carta (3 fotos). La foto del local ya está integrada (`local.png`; pendiente optimización a `.webp`).
+- Fuente Salo sin auto-alojar (`@font-face` comentado en `index.css`; archivos ausentes en `assets/fonts/`).
+- Páginas Login y Registro sin construir; enlace "Iniciar Sesión" en el header apunta a `#` con TODO.
+- El keying del carrito es por `product.id` — variantes de opciones no generan líneas separadas (TODO en `OrderCatalog.jsx`).
+- Modal de HORAS DISPONIBLES en el flujo de reservas es iteración futura (TODO en `Reservas.jsx`).
 
 ---
 
 ## Bitácora
+
+### [2026-06-10] frontend-react — Foto real del local integrada en Home
+
+- **Qué cambió**:
+  - `frontend/src/assets/local.png` — imagen real del local añadida al repositorio (PNG 850×691, ~1 MB). El archivo original del usuario era "Mask group.png"; renombrado a `local.png`.
+  - `frontend/src/pages/Home.jsx` — añadido `import localPhoto from '../assets/local.png'`. El `<div className="placeholder media-photo">` (placeholder previo) sustituido por `<img src={localPhoto} alt="Terraza y entrada de La Casa Nostra en Mataró" className="media-photo" />`. Sin `role` redundante (accesible).
+  - `frontend/src/index.css` — añadida regla `img.media-photo { width:100%; height:100%; object-fit:cover; display:block; }` para que la imagen rellene la caja sin deformarse. La regla compartida `.media-photo, .media-box` (min-height + border-radius) se mantiene sin cambios.
+  - Build verificado: `vite build` compila OK; la imagen se empaqueta en `dist/assets`.
+
+- **Por qué**: El usuario aportó la primera imagen real del negocio.
+
+- **Impacto para otros agentes**:
+  - `testing-expert`: si hay tests de snapshot o de renderizado del `Home`, actualizar el snapshot para reflejar el `<img>` en lugar del `<div className="placeholder">`.
+  - `qa-expert`: verificar en dispositivo real que la imagen se muestra correcta y que el `alt` es legible por lectores de pantalla.
+
+- **Acción requerida**:
+  - `frontend-react` (tarea futura): optimizar `local.png` (~1 MB) convirtiéndola a `.webp` o comprimiéndola para mejorar la carga en móvil.
+  - Siguen siendo placeholders pendientes de imagen real: sección hero (`hero-media`), polaroids de la carta (3 fotos) y los `media-box`.
+
+### [2026-06-10] knowledge-coordinator — Consolidación 2026-06-10: foto real del local
+
+- **Qué cambió**: Registrada la integración de la primera imagen real (`local.png`) en Home. Actualizado `CLAUDE.md` sección 7 para reflejar que la imagen del local ya no es un placeholder.
+- **Por qué**: Consolidación rutinaria tras cambio de frontend.
+- **Impacto para otros agentes**: Ver entrada anterior (`frontend-react — Foto real del local`).
+- **Acción requerida**: Ninguna nueva. Ver deuda de optimización de imagen anotada arriba.
+
+### [2026-06-10] frontend-react — Auditoría de navegación y responsive: correcciones
+
+- **Qué cambió**:
+
+  **EJE 1 — Navegación**
+  - `frontend/src/pages/Home.jsx:81` — `href="#empleo"` corregido a `href="#trabaja"` (el id real de la sección de empleo en Home).
+  - `frontend/src/components/Header.jsx` — `NAV_LINKS`: `{ label: 'Iniciar Sesión', href: '/#login' }` → `href: '#'` con comentario `// TODO: ruta /login cuando exista la página`. El enlace `/#login` apuntaba a una ancla/página inexistente.
+  - `frontend/src/components/Footer.jsx` — Columna "Páginas" reescrita. Antes todos los items eran `<a href="#">`. Ahora:
+    - "Hacer pedido" → `<Link to="/hacer-pedido">` (ruta interna SPA)
+    - "Reservar" → `<Link to="/reservar">` (ruta interna SPA)
+    - "La Carta" → `<a href="/#carta">` (ancla a Home, id existente)
+    - "Trabaja con Nosotros" → `<a href="/#trabaja">` (ancla a Home, id existente)
+    - "Política de Privacidad", "Aviso Legal", "Política de Cookies", "Condiciones de venta" → siguen como `href="#"` con comentario `// TODO` (páginas no construidas todavía).
+    - Añadido `import { Link } from 'react-router-dom'`.
+
+  **EJE 2 — Responsive / CSS**
+  - `frontend/src/index.css` — **Bug crítico resuelto**: `.modal-backdrop` estaba definido dos veces (una para `ProductModal`, otra para `Modal`). La segunda definición sobreescribía `align-items: flex-end` de la primera, rompiendo el comportamiento de bottom-sheet del `ProductModal`. Solución: renombrado el backdrop de `ProductModal` a `.product-modal-backdrop` (y actualizado `ProductModal.jsx` para usarlo). También renombradas las `@keyframes` correspondientes a `product-backdrop-fade-in` y `product-modal-slide-up` para evitar conflictos de nombre.
+  - `frontend/src/index.css` — `@keyframes modal-slide-up` del bloque genérico (`Modal`) renombrado a `modal-panel-slide-up` (antes coincidía en nombre con el del ProductModal, el último definido ganaba la cascada).
+  - `frontend/src/index.css` — `modal-close-btn` (botón X del ProductModal): era 36×36px en todos los tamaños. Añadida regla en `@media (max-width: 520px)` para subir a 44×44px (tap target mínimo en móvil).
+  - `frontend/src/index.css` — `.checkout-bar-change-btn`: añadida regla `min-height: 44px` en `@media (max-width: 520px)` para garantizar el tap target mínimo en móvil.
+
+- **Por qué**: Auditoría de calidad (navegación + responsive) sobre lo ya construido. Sin features nuevas.
+
+- **Impacto para otros agentes**:
+  - `testing-expert`: al probar el `ProductModal` (bottom sheet en móvil), asegurarse de que el componente usa `.product-modal-backdrop`, no `.modal-backdrop`.
+  - `qa-expert`: verificar en 360px que el bottom-sheet del ProductModal se muestra correctamente (antes estaba centrado en vez de en la parte inferior por el conflicto de CSS).
+
+- **Acción requerida**: `qa-expert` puede verificar en DevTools los dos contextos de modal (ProductModal bottom-sheet vs Modal genérico centrado).
+
+### [2026-06-10] frontend-react — Página Reservas: paso 1 del flujo de reservas
+
+- **Qué cambió**:
+  - Nueva página `frontend/src/pages/Reservas.jsx` — paso 1 del flujo de reservas (formulario de búsqueda de mesa). Campos: fecha (input date), hora (select con franjas 13:00–22:30 cada 30 min), zona (Interior / Terraza / Barra) y número de personas (1–6). Botón "Buscar mesa" con validación de campo + estado "Buscando mesas disponibles…". Botón WhatsApp para grupos ≥7. Todos los datos son mock (sin API).
+  - `frontend/src/App.jsx` — nueva ruta `/reservar` → `<Reservas />`.
+  - `frontend/src/components/Header.jsx` — botón "Reservar" cambiado de `<a href="/#reservar">` a `<Link to="/reservar">`.
+  - `frontend/src/index.css` — nuevas clases con prefijo `reservas-` (~100 líneas): `.reservas`, `.reservas-inner`, `.reservas-title`, `.reservas-sub`, `.reservas-form`, `.reservas-grid` (2 cols → 1 col en ≤860px), `.reservas-field` (pill icon+input/select, height 52px), `.reservas-search-btn`, `.reservas-searching-hint`, `.reservas-divider`, `.reservas-group-text`, `.reservas-whatsapp-btn`. Build verificado OK.
+
+- **Por qué**: Petición explícita del usuario.
+
+- **Impacto para otros agentes**:
+  - `backend-node`: cuando se construya la API de reservas, el contrato mínimo necesario será `POST /api/reservations` con body `{ date, time, zone, guests }` y respuesta con `availableSlots[]`. Hay un `// TODO: abrir modal HORAS DISPONIBLES (iteración futura)` en el componente marcando el punto de integración.
+  - `testing-expert`: flujo crítico a cubrir: (1) submit con campos vacíos → muestra los 4 errores; (2) submit completo → estado "Buscando"; (3) cambiar un campo tras submit → limpia ese error.
+  - `qa-expert`: revisar en 360px que el grid de 1 columna no desborda, que targets táctiles son ≥44px, y que el botón WhatsApp abre `target="_blank"`.
+
+- **Acción requerida**:
+  - `backend-node` debe definir el contrato de `POST /api/reservations` cuando andamie el backend.
+  - El número de WhatsApp real está pendiente de que el negocio lo proporcione (placeholder `34XXXXXXXXX` en el componente).
+  - El modal de HORAS DISPONIBLES y el paso de email de confirmación son iteraciones futuras.
+
+### [2026-06-10] frontend-react — Ficha de producto (modal) + tarjetas sin imagen + campo `options` mock
+
+- **Qué cambió**:
+  - `frontend/src/components/ProductModal.jsx` (nuevo) — modal de detalle de producto. Una sola columna de contenido (sin imagen): nombre (Salo, mayúsculas), descripción, alérgenos (requisito legal UE), grupos de opciones (`fieldset`+`legend`+`input[type=radio]`) y pie sticky con precio + botón "Añadir al pedido". Accesible: `role="dialog"` `aria-modal="true"` `aria-labelledby`, foco inicial en el botón X, foco atrapado (Tab/Shift+Tab), devolución de foco al cerrar, bloqueo de scroll del body, cierre con Escape o clic en el backdrop. Animación de entrada (bottom sheet en móvil, centrado en ≥560px); respeta `prefers-reduced-motion`. Selección por defecto: primera opción de cada grupo.
+  - `frontend/src/components/ProductCard.jsx` (reescrito) — tarjeta texto-only, sin imagen ni placeholder. Layout en columna: nombre, descripción, alérgenos, y al pie un `.product-card-footer` con precio a la izquierda y botón "+" a la derecha. La tarjeta completa es clicable (`role="button"` + `tabIndex={0}` + `onKeyDown Enter/Space`) → abre el modal via prop `onOpen`. El botón "+" usa `stopPropagation` para añadir 1 unidad al carrito directamente sin abrir el modal.
+  - `frontend/src/data/catalogMockData.js` (actualizado) — añadido campo `options` (mock) en los 4 productos de la categoría `burgers`. Grupos: "Elige tu acompañante" (Bravas / Fritas) y "Elige tu salsa" (Brava / Alioli / BBQ / César / Mostaza y miel / Sin salsa). El resto de categorías no tienen `options`. Comentario TODO con la forma exacta que deberá devolver `GET /api/catalog`.
+  - `frontend/src/pages/OrderCatalog.jsx` (actualizado) — añadido estado `selectedProduct`, callbacks `handleOpenProduct`/`handleCloseModal`, prop `onOpen` a `ProductCard`, renderizado condicional de `<ProductModal>`. `handleAddToCart` acepta `(product, _options)` — las opciones se capturan pero el keying del carrito sigue siendo por `product.id` (TODO documentado).
+  - `frontend/src/index.css` — estilos del modal (`.modal-backdrop`, `.product-modal`, `.modal-close-btn`, `.modal-body`, `.modal-product-*`, `.modal-option-group`, `.radio-option` en pill con indicador redondo de marca, `.modal-footer`). Sección `.product-card` reescrita: layout en columna, `.product-card-footer` flex, botón "+" in-flow. Eliminadas reglas de imagen. Build verificado OK.
+
+- **Por qué**: El usuario pidió ficha de producto modal sin imagen + rediseño de tarjetas sin foto.
+
+- **Impacto para otros agentes**:
+  - `backend-node`: `GET /api/catalog` deberá incluir el campo `options` por producto. Forma exacta documentada en `catalogMockData.js` con comentario TODO.
+  - `testing-expert`: flujos a cubrir: (1) click tarjeta abre modal; (2) botón "+" añade sin abrir modal; (3) Escape/backdrop cierra; (4) foco vuelve al opener; (5) selección de opciones funciona; (6) "Añadir al pedido" suma al carrito y cierra.
+  - `qa-expert`: revisar bottom sheet en móvil, tarjeta centrada en ≥560px, `prefers-reduced-motion`.
+
+- **Acción requerida**:
+  - `backend-node`: añadir campo `options` al contrato de `GET /api/catalog`.
+  - `testing-expert`: escribir tests de los flujos del modal.
+
+### [2026-06-10] frontend-react — Modal reutilizable de confirmación de pedido
+
+- **Qué cambió**:
+  - Nuevo componente `frontend/src/components/Modal.jsx` — modal genérico y accesible.
+    Props: `isOpen` (boolean), `onClose` (function), `title` (string, default "¡GRACIAS POR TU PEDIDO!"), `message` (string, default texto de confirmación estándar), `children` (nodo React opcional para contenido extra).
+    Usa variables CSS de marca (`var(--brand)`, `var(--font-heading)`) — nada hardcodeado.
+    Accesibilidad: `role="dialog"`, `aria-modal`, `aria-labelledby`, focus trap básico, cierre con Escape y click en backdrop.
+    Bloquea scroll del body mientras está abierto.
+    Responsive sin overflow horizontal; animación de fade/slide respeta `prefers-reduced-motion`.
+  - `frontend/src/index.css` — Nuevas clases `.modal-backdrop`, `.modal-panel`, `.modal-close`, `.modal-title`, `.modal-message` añadidas antes del bloque RESPONSIVE (z-index 200, por encima del header y la checkout-bar).
+  - `frontend/src/pages/OrderConfirmation.jsx` — Integra el Modal: se abre automáticamente al llegar a la página de confirmación. El estado `modalOpen` lo controla. Preparado para recibir `title` y `message` desde la respuesta de la API futura sin modificar el componente.
+  - `frontend/src/pages/Home.jsx` — Corregida rotura de build pre-existente: eliminado el import de `../assets/local.jpg` (imagen ausente) y sustituido el `<img>` por un `<div className="placeholder media-box">` consistente con el resto de placeholders del proyecto.
+
+- **Por qué**: Petición explícita del usuario. El modal cubre la necesidad actual (texto por defecto) y está preparado para recibir contenido dinámico de la API.
+
+- **Impacto para otros agentes**:
+  - `backend-node`: cuando `POST /api/orders` exista, puede devolver `confirmationTitle` y `confirmationMessage` en la respuesta. El frontend solo necesita pasarlos como props al Modal (ver comentario en `OrderConfirmation.jsx`).
+  - `testing-expert`: flujo crítico a cubrir: `OrderConfirmation` monta → modal visible → foco en botón cerrar → Escape cierra → backdrop click cierra → scroll del body restaurado.
+  - `qa-expert`: revisar modal en móvil (360px), que no haya overflow y que el título no solape el botón de cierre.
+
+- **Acción requerida**: `backend-node` puede incluir `confirmationTitle`/`confirmationMessage` en la respuesta de `POST /api/orders` cuando lo andamie. `testing-expert` añadir tests del ciclo open/close del modal.
+
+### [2026-06-09] knowledge-coordinator — Deploy a GitHub Pages + estado frontend consolidado
+
+- **Qué cambió**:
+  - Decisión de hosting actualizada: el frontend se despliega a GitHub Pages (https://jrero99.github.io/lcn/) mediante GitHub Actions (commit fbcafb9).
+  - Workflow `.github/workflows/deploy.yml`: se activa en push a `main` y con `workflow_dispatch`. Pasos: `npm ci` + `npm run build` en `frontend/`, copia `dist/index.html` → `dist/404.html` (fallback SPA para React Router), publica con `actions/deploy-pages`.
+  - `frontend/vite.config.js`: `base: process.env.GITHUB_ACTIONS ? '/lcn/' : '/'` — en local sigue siendo `/`.
+  - React Router configurado con `basename` para funcionar bajo `/lcn/`.
+  - `CLAUDE.md` actualizado: tabla de stack (fila Hosting), bloque "Decisiones confirmadas" y sección 7 "Estado actual".
+- **Por qué**: Decisión confirmada por el usuario hoy.
+- **Impacto para otros agentes**:
+  - `frontend-react`: todos los `Link` y rutas ya funcionan bajo `/lcn/` gracias al `basename`. Si se añaden assets con rutas absolutas, deben usar `import.meta.env.BASE_URL` (Vite).
+  - `testing-expert`: los tests de rutas deben pasarle `basename="/lcn"` al `MemoryRouter` / `createMemoryRouter` para ser consistentes con producción.
+  - `backend-node`: sin impacto directo (el backend no se despliega).
+- **Acción requerida**: `testing-expert` debe tener en cuenta el `basename` al escribir tests de navegación.
 
 ### [2026-06-09] frontend-react — Responsive audit: tablet & mobile pass
 
