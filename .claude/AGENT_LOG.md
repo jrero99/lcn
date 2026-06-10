@@ -60,6 +60,25 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 
 ## Bitácora
 
+### [2026-06-10] frontend-react — Animación de abanico en polaroids de la sección "Nuestra carta"
+
+- **Qué cambió**:
+  - `frontend/src/pages/Home.jsx` — añadidos imports `useRef` y `useEffect`. Nuevo ref `cartaPhotosRef` sobre `.carta-photos`. `useEffect` instancia un `IntersectionObserver` (threshold 0.35) que añade/quita la clase CSS `is-open` al contenedor cuando la sección entra/sale del viewport. El observer se limpia en el cleanup. No se usa estado React (la clase se gestiona directamente en el DOM como es habitual para efectos de scroll).
+  - `frontend/src/index.css` — sección de polaroids ampliada:
+    - Estado **recogido** (por defecto, sin `.is-open`): `transform: translateX(0) rotate(0deg) scale(0.85); opacity: 0.75;` con `transition: transform 0.6s cubic-bezier(0.34,1.1,0.64,1), opacity 0.5s ease`.
+    - Estado **abierto** (`.carta-photos.is-open .polaroid-left/center/right`): cada polaroid recupera su inclinación característica (±8°) y se desplaza ligeramente hacia fuera (±12px translateX). Delays escalonados: 0 / 0.08s / 0.16s para efecto abanico.
+    - Overrides responsive actualizados: en ≤860px y ≤520px las reglas pasan a usar `.carta-photos.is-open` con las rotaciones propias de cada breakpoint (±5° y ±4° respectivamente), eliminando los conflictos con el estado recogido.
+    - `@media (prefers-reduced-motion: reduce)` desactiva las transiciones y muestra las polaroids directamente en su estado natural (sin animación).
+  - Build `vite build` verificado: 0 errores, 0 warnings.
+
+- **Por qué**: Petición del usuario para animar la sección carta al hacer scroll.
+
+- **Impacto para otros agentes**:
+  - `testing-expert`: si hay tests de snapshot del componente `Home`, actualizar. Considerar test de que `IntersectionObserver` añade/quita la clase `is-open` correctamente.
+  - `qa-expert`: verificar en 360px que el estado recogido no causa overflow horizontal. Verificar en `prefers-reduced-motion: reduce` que las fotos se ven abiertas desde el inicio.
+
+- **Acción requerida**: Ninguna urgente.
+
 ### [2026-06-10] frontend-react — Foto real del local integrada en Home
 
 - **Qué cambió**:
