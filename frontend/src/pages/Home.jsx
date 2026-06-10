@@ -1,6 +1,12 @@
 import { Link } from 'react-router-dom'
 import Marquee from '../components/Marquee.jsx'
 import localPhoto from '../assets/local.png'
+import cartaLeft from '../assets/carta-left.jpg'
+import cartaCenter from '../assets/carta-center.jpg'
+import cartaRight from '../assets/carta-right.jpg'
+import heroAmbience from '../assets/photos/hero-ambience.jpg'
+import localWall from '../assets/photos/local-wall.jpg'
+import workDining from '../assets/photos/work-dining.jpg'
 
 export default function Home() {
   return (
@@ -13,7 +19,11 @@ export default function Home() {
           Pan crujiente, ingredientes de verdad y recetas que saben a casa.
           Bienvenido a La Casa Nostra.
         </p>
-        <div className="placeholder hero-media" role="img" aria-label="Imagen principal (pendiente)" />
+        <img
+          className="hero-media"
+          src={heroAmbience}
+          alt="Mesa de La Casa Nostra con mantel de cuadros y la carta de la casa"
+        />
       </section>
 
       {/* SOBRE NOSOTROS */}
@@ -30,9 +40,9 @@ export default function Home() {
       {/* NUESTRA CARTA */}
       <section className="section centered" id="carta">
         <div className="carta-photos">
-          <div className="polaroid polaroid-left placeholder" role="img" aria-label="Bocadillo (pendiente)" />
-          <div className="polaroid polaroid-center placeholder" role="img" aria-label="Plato de la carta (pendiente)" />
-          <div className="polaroid polaroid-right placeholder" role="img" aria-label="Ración (pendiente)" />
+          <img className="polaroid polaroid-left" src={cartaLeft} alt="Bocadillo de La Casa Nostra" />
+          <img className="polaroid polaroid-center" src={cartaCenter} alt="Plato de la carta de La Casa Nostra" />
+          <img className="polaroid polaroid-right" src={cartaRight} alt="Ración de La Casa Nostra" />
         </div>
         <h2 className="section-title">Nuestra carta</h2>
         <p className="section-text">
@@ -56,7 +66,11 @@ export default function Home() {
             alt="Terraza y entrada de La Casa Nostra en Mataró"
             className="media-photo"
           />
-          <div className="placeholder media-box" />
+          <img
+            src={localWall}
+            alt="Interior de La Casa Nostra: pared con fotos enmarcadas y mesas"
+            className="media-box"
+          />
         </div>
         <div className="centered">
           <h2 className="section-title">El local</h2>
@@ -80,7 +94,11 @@ export default function Home() {
             </p>
             <a className="btn btn-outline" href="#trabaja">Únete al equipo</a>
           </div>
-          <div className="placeholder media-box" />
+          <img
+            src={workDining}
+            alt="Sala de La Casa Nostra con mesas vestidas y ambiente acogedor"
+            className="media-box"
+          />
         </div>
       </section>
 

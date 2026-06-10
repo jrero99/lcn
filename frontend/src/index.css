@@ -163,8 +163,10 @@ main { display: block; }
 }
 .hero-media {
   margin-top: clamp(1.5rem, 4vw, 2.5rem);
+  width: 100%;
   height: clamp(220px, 30vw, 360px);
   border-radius: 22px;
+  object-fit: cover;
 }
 
 /* ---------- Placeholders de imagen ---------- */
@@ -185,6 +187,10 @@ main { display: block; }
   border-radius: 14px;
   border: 8px solid #fff;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+}
+img.polaroid {
+  object-fit: cover;
+  display: block;
 }
 .polaroid-left { transform: rotate(-8deg); }
 .polaroid-center {
@@ -238,7 +244,8 @@ main { display: block; }
   min-height: clamp(220px, 28vw, 320px);
   border-radius: 18px;
 }
-img.media-photo {
+img.media-photo,
+img.media-box {
   width: 100%;
   height: 100%;
   object-fit: cover;
