@@ -16,15 +16,11 @@ const PAGE_LINKS = [
   { label: 'Hacer pedido',        type: 'link',   to: '/hacer-pedido' },
   { label: 'Reservar',            type: 'link',   to: '/reservar' },
   { label: 'La Carta',            type: 'anchor', href: '/#carta' },
-  { label: 'Trabaja con Nosotros',type: 'anchor', href: '/#trabaja' },
-  // TODO: create /politica-privacidad page
-  { label: 'Política de Privacidad', type: 'pending' },
-  // TODO: create /aviso-legal page
-  { label: 'Aviso Legal',         type: 'pending' },
-  // TODO: create /politica-cookies page
-  { label: 'Política de Cookies', type: 'pending' },
-  // TODO: create /condiciones-venta page
-  { label: 'Condiciones de venta',type: 'pending' },
+  { label: 'Trabaja con Nosotros',type: 'link',   to: '/trabaja' },
+  { label: 'Política de Privacidad', type: 'link', to: '/politica-privacidad' },
+  { label: 'Aviso Legal',         type: 'link',   to: '/aviso-legal' },
+  { label: 'Política de Cookies', type: 'link',   to: '/politica-cookies' },
+  { label: 'Condiciones de venta',type: 'link',   to: '/condiciones-venta' },
 ]
 
 export default function Footer() {

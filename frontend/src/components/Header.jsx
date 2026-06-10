@@ -2,13 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import Logo from './Logo.jsx'
 
-// Navigation links. href = anchor inside home (for now);
-// expand to real routes when those pages are built.
+// Navigation links.
+// - `to`   : internal SPA route → rendered as <Link> (no full-page reload).
+// - `href` : home-section anchor → rendered as <a>.
 const NAV_LINKS = [
-  { label: 'La Carta', href: '/#carta' },
-  { label: 'Trabaja con Nosotros', href: '/#trabaja' },
-  // TODO: ruta /login cuando exista la página
-  { label: 'Iniciar Sesión', href: '#' },
+  { label: 'La Carta',             href: '/#carta' },
+  { label: 'Trabaja con Nosotros', to: '/trabaja' },
+  { label: 'Iniciar Sesión',       to: '/login' },
 ]
 
 // Hamburger icon (three bars / close X) — inline SVG, no dependency.
@@ -92,11 +92,19 @@ export default function Header() {
         className={`header-nav${navOpen ? ' header-nav--open' : ''}`}
         aria-label="Navegació principal"
       >
-        {NAV_LINKS.map((link) => (
-          <a key={link.label} className="nav-link" href={link.href}>
-            {link.label}
-          </a>
-        ))}
+        {NAV_LINKS.map((link) =>
+          link.to ? (
+            // Internal SPA route: use <Link> to avoid full-page reload.
+            <Link key={link.label} className="nav-link" to={link.to}>
+              {link.label}
+            </Link>
+          ) : (
+            // Home-section anchor or external URL: plain <a>.
+            <a key={link.label} className="nav-link" href={link.href}>
+              {link.label}
+            </a>
+          )
+        )}
       </nav>
 
       <div className="header-actions">

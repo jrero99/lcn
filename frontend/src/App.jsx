@@ -7,6 +7,13 @@ import PedidoDatos from './pages/PedidoDatos.jsx'
 import OrderCatalog from './pages/OrderCatalog.jsx'
 import OrderConfirmation from './pages/OrderConfirmation.jsx'
 import Reservas from './pages/Reservas.jsx'
+import Trabaja from './pages/Trabaja.jsx'
+import Login from './pages/Login.jsx'
+import Registro from './pages/Registro.jsx'
+import AvisoLegal from './pages/AvisoLegal.jsx'
+import PoliticaPrivacidad from './pages/PoliticaPrivacidad.jsx'
+import PoliticaCookies from './pages/PoliticaCookies.jsx'
+import CondicionesVenta from './pages/CondicionesVenta.jsx'
 
 // Flujo de pedido (los datos se piden ANTES del catálogo, porque la barra de
 // checkout muestra la dirección durante la navegación):
@@ -37,6 +44,19 @@ export default function App() {
 
           {/* Reservations — step 1: date/time/zone/guests form */}
           <Route path="/reservar" element={<Reservas />} />
+
+          {/* Jobs application form (mock — no backend yet) */}
+          <Route path="/trabaja" element={<Trabaja />} />
+
+          {/* Auth pages — mock only, TODO: integrate POST /api/auth/login and /register */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/registro" element={<Registro />} />
+
+          {/* Páginas legales (texto informativo) */}
+          <Route path="/aviso-legal" element={<AvisoLegal />} />
+          <Route path="/politica-privacidad" element={<PoliticaPrivacidad />} />
+          <Route path="/politica-cookies" element={<PoliticaCookies />} />
+          <Route path="/condiciones-venta" element={<CondicionesVenta />} />
         </Routes>
       </main>
       <Footer />

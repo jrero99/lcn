@@ -114,7 +114,7 @@ export default function Home() {
               En La Casa Nostra siempre buscamos gente con actitud, ganas y pasión
               por lo que hace.
             </p>
-            <a className="btn btn-outline" href="#trabaja">Únete al equipo</a>
+            <Link className="btn btn-outline" to="/trabaja">Únete al equipo</Link>
           </div>
           <img
             src={workDining}

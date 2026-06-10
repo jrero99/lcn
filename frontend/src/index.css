@@ -19,6 +19,8 @@
   --muted: #8d8378;
   --placeholder: #d6d6d6;
   --bg: #ffffff;
+  /* Secondary dark button (used in auth pages for the "switch" CTA) */
+  --ink-green: #16261d;
 
   /* Tipografías */
   --font-heading: "Salo", "Roboto", system-ui, sans-serif;
@@ -300,6 +302,84 @@ img.media-box {
 .work-lead { font-weight: 700; color: var(--ink); margin: 0; }
 .work-text { margin: 0; text-align: left; }
 .work-panel .btn { align-self: flex-start; margin-top: 0.6rem; }
+
+/* ---------- Páginas de texto (legales / informativas) ---------- */
+.legal-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2.5rem);
+}
+.legal-head { margin-bottom: 2rem; }
+.legal-title {
+  color: var(--brand);
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+  text-transform: uppercase;
+  margin: 0 0 0.6rem;
+}
+.legal-lead {
+  color: var(--ink);
+  font-size: 1.02rem;
+  margin: 0 0 0.4rem;
+}
+.legal-updated {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0;
+}
+.legal-body {
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+.legal-body h2 {
+  color: var(--brand);
+  font-size: 1.15rem;
+  margin: 1.8rem 0 0.6rem;
+}
+.legal-body p { margin: 0 0 1rem; }
+.legal-body ul {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+}
+.legal-body li { margin-bottom: 0.35rem; }
+.legal-body a {
+  color: var(--brand);
+  text-decoration: underline;
+}
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0 1.2rem;
+  font-size: 0.88rem;
+}
+.legal-table th,
+.legal-table td {
+  border: 1px solid #e2ddd5;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+}
+.legal-table th {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+@media (max-width: 520px) {
+  .legal-table,
+  .legal-table thead,
+  .legal-table tbody,
+  .legal-table tr,
+  .legal-table th,
+  .legal-table td { display: block; }
+  .legal-table thead { display: none; }
+  .legal-table td { border: none; padding: 0.25rem 0; }
+  .legal-table tr {
+    border: 1px solid #e2ddd5;
+    border-radius: 10px;
+    padding: 0.7rem;
+    margin-bottom: 0.8rem;
+  }
+}
 
 /* ---------- Cierre ---------- */
 .closing {
@@ -1333,6 +1413,335 @@ img.media-box {
   flex-shrink: 0;
 }
 
+/* ---------- Página: Trabaja con nosotros (/trabaja) ---------- */
+
+/* Visually-hidden utility (accessible labels for icon-only inputs) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.trabaja-page {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1rem, 4vw, 2.5rem);
+}
+
+/* Hero */
+.trabaja-hero {
+  text-align: center;
+  margin-bottom: clamp(2rem, 5vw, 3.5rem);
+}
+
+.trabaja-hero-title {
+  color: var(--brand);
+  font-family: var(--font-heading);
+  font-size: clamp(1.9rem, 5.5vw, 3.2rem);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  margin-bottom: 1rem;
+}
+
+.trabaja-hero-sub {
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* Form wrapper: centred, constrained width */
+.trabaja-form-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.trabaja-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Row 1: two equal columns (Nombre / Teléfono) */
+.trabaja-row-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+/* Row 2: email grows, CV button fixed width */
+.trabaja-row-email {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1rem;
+  align-items: start;
+}
+
+/* Field wrapper — holds the pill + error message */
+.trabaja-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Pill-shaped input wrapper with icon */
+.trabaja-field {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 1.1rem;
+  height: 52px; /* ≥44px tap target */
+  border: 1.5px solid #e3ddd3;
+  border-radius: 999px;
+  background: var(--bg);
+  transition: border-color 0.15s ease;
+}
+.trabaja-field:focus-within {
+  border-color: var(--brand);
+}
+.trabaja-field--error {
+  border-color: var(--brand);
+}
+
+/* Textarea variant: taller, rounded rectangle, not a pill */
+.trabaja-field--textarea {
+  height: auto;
+  border-radius: 14px;
+  padding: 0.85rem 1.1rem;
+  align-items: flex-start;
+}
+.trabaja-field--textarea .trabaja-textarea-icon {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.trabaja-field-icon {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* Inputs and textarea inside pill */
+.trabaja-field input,
+.trabaja-field textarea {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: transparent;
+  min-width: 0;
+  resize: none; /* textarea */
+  padding: 0.7rem 0;
+  line-height: 1.5;
+}
+.trabaja-field input::placeholder,
+.trabaja-field textarea::placeholder {
+  color: var(--muted);
+}
+
+/* Hidden native file input — rendered off-screen but still in the DOM
+   so AT (assistive technologies) can reach it via aria-label */
+.trabaja-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* "Adjuntar CV" trigger button */
+.trabaja-cv-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 52px;
+  padding: 0 1.4rem;
+  white-space: nowrap;
+  border-radius: 999px;
+  font-size: 0.82rem;
+}
+.trabaja-cv-btn--error {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Filename display after selecting a file */
+.trabaja-cv-filename {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0.15rem 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+/* RGPD consent row */
+.trabaja-rgpd-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.trabaja-rgpd-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.trabaja-rgpd-label input[type="checkbox"] {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+.trabaja-rgpd-text { flex: 1; }
+.trabaja-rgpd-link {
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.trabaja-rgpd-link:hover { color: var(--brand-deep); }
+
+/* Full-width submit button */
+.trabaja-submit-btn {
+  width: 100%;
+  padding: 1rem;
+  border: none;
+  border-radius: 12px;
+  background: var(--brand);
+  color: var(--cream);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+  min-height: 52px;
+  box-shadow: 0 6px 16px rgba(122, 2, 14, 0.18);
+  transition: background 0.15s ease;
+}
+.trabaja-submit-btn:hover { background: var(--brand-deep); }
+.trabaja-submit-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+
+/* "Gracias por tu interés" line inside the modal */
+.trabaja-modal-thanks {
+  margin: 1rem auto 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ---------- Páginas: Login y Registro (/login, /registro) ---------- */
+
+/* Centred narrow column — same pattern as .reservas-inner */
+.auth-inner {
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2.5rem);
+}
+
+/* Auth form: inherits .datos-form gap; no extra overrides needed */
+.auth-form {
+  width: 100%;
+}
+
+/* 2-column grid for the 4 registration inputs.
+   Collapses to 1 column at ≤520px (see RESPONSIVE section). */
+.auth-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+/* Visually-hidden accessible label — also used in Trabaja.jsx */
+/* .sr-only is already defined above under Trabaja styles; no duplicate needed */
+
+/* Checkboxes block in registration */
+.auth-checkboxes {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Small inline hint next to required checkbox labels */
+.check-hint-inline {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-left: 0.2rem;
+}
+
+/* Horizontal rule between the main form and the "switch" CTA */
+.auth-divider {
+  width: 100%;
+  height: 1px;
+  background: #ede8e0;
+  margin: 1.75rem 0 1.25rem;
+}
+
+/* "¿Ya tienes cuenta?" / "¿Aún no tienes cuenta?" text */
+.auth-switch-text {
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+  margin: 0 0 0.9rem;
+}
+
+/* Dark block button — secondary CTA (Regístrate / Identifícate).
+   Uses --ink-green variable; never hardcode the colour directly. */
+.btn-block-dark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 1rem;
+  border: none;
+  border-radius: 12px;
+  background: var(--ink-green);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  min-height: 52px; /* ensures ≥44px tap target */
+  box-shadow: 0 4px 14px rgba(22, 38, 29, 0.22);
+  transition: background 0.15s ease;
+  line-height: 1.5;
+}
+.btn-block-dark:hover {
+  background: #0e1c15;
+}
+.btn-block-dark:focus-visible {
+  outline: 2px solid var(--ink-green);
+  outline-offset: 3px;
+}
+
 /* ==========================================================
    RESPONSIVE
    Breakpoints:
@@ -1467,6 +1876,24 @@ img.media-box {
   /* Prevent iOS auto-zoom on focus */
   .reservas-field input,
   .reservas-field select { font-size: 1rem; }
+
+  /* Trabaja: row-two (Nombre/Teléfono) → 1 column on tablet */
+  .trabaja-row-two { grid-template-columns: 1fr; }
+
+  /* Trabaja: email row → stack vertically on tablet */
+  .trabaja-row-email {
+    grid-template-columns: 1fr;
+  }
+
+  /* Trabaja: CV button fills the column when stacked */
+  .trabaja-cv-btn { width: 100%; justify-content: center; }
+
+  /* Trabaja: prevent iOS auto-zoom */
+  .trabaja-field input,
+  .trabaja-field textarea { font-size: 1rem; }
+
+  /* Auth: prevent iOS auto-zoom on auth inputs */
+  .auth-form input { font-size: 1rem; }
 }
 
 /* ---------- Mobile (≤520px) ---------- */
@@ -1536,6 +1963,9 @@ img.media-box {
     min-height: 44px;
     padding: 0.5rem 1rem;
   }
+
+  /* Auth: registration fields collapse to 1 column on mobile */
+  .auth-fields-grid { grid-template-columns: 1fr; }
 }
 
 /* ---------- Small phones (≤400px) ---------- */

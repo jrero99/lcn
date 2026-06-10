@@ -60,6 +60,53 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 
 ## Bitácora
 
+### [2026-06-10] frontend-react — Páginas Login y Registro + modal de bienvenida
+
+- **Qué cambió**:
+  - Nueva página `frontend/src/pages/Login.jsx` — ruta `/login`. Formulario con campos email (`type="email"`, `autocomplete="username"`) y contraseña (`type="password"`, `autocomplete="current-password"`). Estilo `.address-field` con icono SVG decorativo. Validación en cliente: formato email + contraseña no vacía. Mensajes `.field-error` con `role="alert"` y `aria-describedby`. Labels visualmente ocultos (`.sr-only`) para lectores de pantalla. Submit mock: previene default, valida, navega a `/` si ok. Nunca registra credenciales en consola. TODO marcado para `POST /api/auth/login`.
+  - Nueva página `frontend/src/pages/Registro.jsx` — ruta `/registro`. Rejilla 2 columnas (→ 1 col en ≤520px) con 4 inputs: nombre (`autocomplete="given-name"`), apellidos (`autocomplete="family-name"`), email (`type="email"`, `autocomplete="email"`), teléfono (`type="tel"`, `inputMode="tel"`, `autocomplete="tel"`). 4 checkboxes en `<fieldset>`: 2 obligatorios (condiciones de venta + política de protección de datos) y 2 opcionales (mayoría de edad + comunicaciones comerciales). Validación en cliente: 4 campos + 2 checkboxes obligatorios con mensajes de error accesibles. Submit mock: abre el modal de bienvenida (`Modal.jsx` genérico reutilizado). Al cerrar el modal, navega a `/login` con `useNavigate`. TODO para `POST /api/auth/register`. Nunca registra datos personales en consola.
+  - Modal de bienvenida: reutiliza `Modal.jsx` existente con `title="¡Bienvenido/a!"` y mensaje de éxito. Al cerrarlo navega a `/login`.
+  - `frontend/src/App.jsx` — añadidas rutas `/login` → `<Login />` y `/registro` → `<Registro />` (junto con otras páginas legales añadidas en la misma sesión).
+  - `frontend/src/components/Header.jsx` — "Iniciar Sesión" cambiado de `href: '#'` a `to: '/login'` (renderizado como `<Link>` gracias a la lógica ya existente de `link.to` vs `link.href`).
+  - `frontend/src/index.css` — variable `--ink-green: #16261d` añadida en `:root`. Nuevas clases: `.auth-inner`, `.auth-form`, `.auth-fields-grid` (2 cols → 1 col ≤520px), `.auth-checkboxes`, `.check-hint-inline`, `.auth-divider`, `.auth-switch-text`, `.btn-block-dark` (botón oscuro secundario reutilizable, color vía `--ink-green`, min-height 52px). Responsive: ≤860px `font-size: 1rem` en inputs de auth (evita iOS zoom); ≤520px grid colapsa a 1 columna. Build verificado: 0 errores, 0 warnings.
+
+- **Por qué**: Petición explícita del usuario. Las páginas de cuenta son la siguiente funcionalidad pendiente según `CLAUDE.md` sección 7.
+
+- **Impacto para otros agentes**:
+  - `backend-node`: endpoints necesarios para la integración real:
+    - `POST /api/auth/login` — body: `{ email, password }`. Respuesta: token JWT + datos básicos del usuario.
+    - `POST /api/auth/register` — body: `{ nombre, apellidos, email, telefono, aceptaCondiciones: true, aceptaPrivacidad: true, aceptaComunicaciones: boolean }`. Respuesta: confirmación de registro.
+    - Puntos de integración marcados con `// TODO` en ambas páginas.
+  - `security-expert`: revisar la integración real cuando se implemente el backend. Puntos clave: almacenamiento seguro del JWT (httpOnly cookie preferida sobre sessionStorage), CSRF, rate-limiting en login, que la contraseña nunca llegue a logs. La validación de cliente es solo UX; la real debe estar en el servidor.
+  - `testing-expert`: flujos críticos: (1) Login submit vacío → 2 errores; (2) Login email inválido → error formato; (3) Login datos válidos → navega `/`; (4) Registro submit vacío → errores en 4 campos + 2 obligatorios; (5) Registro sin checkboxes obligatorios → error claro; (6) Registro válido → modal visible; (7) Cerrar modal → navega `/login`; (8) Link "Regístrate" → `/registro`; (9) Link "Identifícate" → `/login`.
+  - `qa-expert`: verificar en 360px (1 columna en registro), targets táctiles ≥44px, botón oscuro distinguible del rojo, modal de bienvenida centrado y accesible.
+
+- **Acción requerida**:
+  - `backend-node`: definir e implementar `POST /api/auth/login` y `POST /api/auth/register`.
+  - `security-expert`: revisar estrategia de almacenamiento JWT y controles de seguridad antes de la integración real.
+
+### [2026-06-10] frontend-react — Página "Trabaja con nosotros" (/trabaja)
+
+- **Qué cambió**:
+  - `frontend/src/pages/Trabaja.jsx` (nuevo) — página de candidatura laboral. Hero centrado con título rojo (fuente heading, mayúsculas) y subtítulo en --muted. Formulario: fila 1 (Nombre + Teléfono, 2 cols → 1 en ≤860px), fila 2 (Email + botón "Adjuntar CV" que dispara un `<input type="file" accept=".pdf,.doc,.docx">` oculto y muestra el nombre del fichero), fila 3 (Mensaje, textarea opcional). Checkbox de consentimiento RGPD obligatorio (requisito legal + CLAUDE.md §5). Validación en cliente al submit: nombre, teléfono, email (formato), CV y RGPD obligatorios; mensaje opcional. Al enviar correctamente: abre el `Modal` genérico de confirmación y resetea el formulario. Sin llamada a API (mock). Marcado con `// TODO: POST /api/jobs` con el contrato esperado.
+  - `frontend/src/App.jsx` — nueva ruta `/trabaja` → `<Trabaja />` + imports de `Login` y `Registro` añadidos por el linter (esas páginas ya existían).
+  - `frontend/src/components/Header.jsx` — `NAV_LINKS` refactorizado: los items con `to` se renderizan como `<Link>` (React Router, sin recarga); los items con `href` siguen como `<a>`. "Trabaja con Nosotros" cambiado de `href: '/#trabaja'` a `to: '/trabaja'`. "Iniciar Sesión" actualizado por el linter a `to: '/login'` (la página existe). El hamburguesa y el cierre de nav al navegar siguen funcionando.
+  - `frontend/src/pages/Home.jsx` — botón "Únete al equipo" cambiado de `<a href="#trabaja">` a `<Link to="/trabaja">`.
+  - `frontend/src/components/Footer.jsx` — "Trabaja con Nosotros" cambiado de `type: 'anchor', href: '/#trabaja'` a `type: 'link', to: '/trabaja'`.
+  - `frontend/src/index.css` — nuevas clases con prefijo `trabaja-` (~120 líneas): `.trabaja-page`, `.trabaja-hero`, `.trabaja-hero-title`, `.trabaja-hero-sub`, `.trabaja-form-wrap`, `.trabaja-form`, `.trabaja-row-two` (2 cols), `.trabaja-row-email` (email + btn CV), `.trabaja-field` (pill icon+input, 52px height), `.trabaja-field--textarea`, `.trabaja-file-input` (oculto off-screen), `.trabaja-cv-btn`, `.trabaja-cv-filename`, `.trabaja-rgpd-wrap/label/text/link`, `.trabaja-submit-btn`, `.trabaja-modal-thanks`. Clase utilitaria `.sr-only` añadida. Responsive en ≤860px: `.trabaja-row-two` y `.trabaja-row-email` colapsan a 1 columna; `.trabaja-cv-btn` ancho 100%; inputs font-size 1rem (evita zoom iOS). Build verificado: 0 errores, 0 warnings.
+
+- **Por qué**: Petición del usuario — nueva página de formulario de candidatura laboral.
+
+- **Impacto para otros agentes**:
+  - `backend-node`: cuando se construya la API de empleo, el contrato esperado es `POST /api/jobs` con `Content-Type: multipart/form-data`, campos `nombre` (string), `telefono` (string), `email` (string), `mensaje` (string, opcional) y `cv` (File: pdf/doc/docx). Respuesta: `201 { message: string }`. Errores de validación: `422 { errors: { field: string }[] }`. El punto de integración está marcado con `// TODO: POST /api/jobs` en `Trabaja.jsx`.
+  - `testing-expert`: flujos críticos a cubrir: (1) submit con todos los campos vacíos → 5 errores (nombre, teléfono, email, cvFile, rgpd); (2) email con formato inválido → error solo en email; (3) seleccionar archivo → muestra nombre del fichero; (4) submit válido → modal se abre, formulario se resetea; (5) cerrar modal (X / Escape / backdrop) → `isOpen` false; (6) responsive ≤860px: filas colapsan correctamente.
+  - `qa-expert`: verificar en 360px sin overflow horizontal, targets táctiles ≥44px, inputs font-size 16px en móvil (sin zoom iOS), modal accesible (focus trap, aria).
+  - `security-expert`: el formulario no logea datos personales en consola (cumplido). El campo RGPD es obligatorio antes del envío (cumplido). Cuando se conecte al backend, asegurarse de que el CV se valida en servidor (tipo MIME real, no solo extensión), y que el endpoint de jobs está autenticado o rate-limited para prevenir spam/abuso.
+
+- **Acción requerida**:
+  - `backend-node`: implementar `POST /api/jobs` (multipart/form-data) cuando se andamie el backend.
+  - `security-expert`: revisar el flujo de subida de archivos cuando exista el endpoint backend.
+
 ### [2026-06-10] frontend-react — Animación de abanico en polaroids de la sección "Nuestra carta"
 
 - **Qué cambió**:
