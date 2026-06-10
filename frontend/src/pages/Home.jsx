@@ -1,6 +1,7 @@
+import { useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Marquee from '../components/Marquee.jsx'
-import localPhoto from '../assets/local.png'
+import localPhoto from '../assets/photos/local-entrance.jpg'
 import cartaLeft from '../assets/carta-left.jpg'
 import cartaCenter from '../assets/carta-center.jpg'
 import cartaRight from '../assets/carta-right.jpg'
@@ -9,6 +10,27 @@ import localWall from '../assets/photos/local-wall.jpg'
 import workDining from '../assets/photos/work-dining.jpg'
 
 export default function Home() {
+  const cartaPhotosRef = useRef(null)
+
+  useEffect(() => {
+    const el = cartaPhotosRef.current
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.classList.add('is-open')
+        } else {
+          el.classList.remove('is-open')
+        }
+      },
+      { threshold: 0.35 }
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <>
       {/* HERO */}
@@ -39,7 +61,7 @@ export default function Home() {
 
       {/* NUESTRA CARTA */}
       <section className="section centered" id="carta">
-        <div className="carta-photos">
+        <div className="carta-photos" ref={cartaPhotosRef}>
           <img className="polaroid polaroid-left" src={cartaLeft} alt="Bocadillo de La Casa Nostra" />
           <img className="polaroid polaroid-center" src={cartaCenter} alt="Plato de la carta de La Casa Nostra" />
           <img className="polaroid polaroid-right" src={cartaRight} alt="Ración de La Casa Nostra" />
