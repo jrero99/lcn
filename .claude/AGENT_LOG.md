@@ -55,10 +55,299 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 - Páginas Login y Registro sin construir; enlace "Iniciar Sesión" en el header apunta a `#` con TODO.
 - El keying del carrito es por `product.id` — variantes de opciones no generan líneas separadas (TODO en `OrderCatalog.jsx`).
 - Modal de HORAS DISPONIBLES en el flujo de reservas es iteración futura (TODO en `Reservas.jsx`).
+- [ALTO] JWT access token configurado a 7 días en `backend/src/utils/jwt.js:22` (maxAge cookie) pero `JWT_EXPIRES_IN` en .env.example dice "15m". El token real firmado por signToken usa `config.jwtExpiresIn` (default "7d"). Alargar la expiración en caso de robo de cookie extiende mucho la ventana de ataque. Requiere alinear duración real del JWT con la del cookie o implementar refresh tokens.
+- [ALTO] Rate limiting solo por IP (`express-rate-limit` default). No hay rate limiting por teléfono/cuenta en `POST /api/orders` ni en `POST /api/auth/login` a nivel de middleware (el bloqueo por cuenta en login está en memoria en-proceso: se reinicia al reiniciar el servidor y no escala a multi-instancia).
+- [MEDIO] CORS: un OPTIONS preflight a un origen no permitido devuelve 204 sin cabeceras CORS, pero no rechaza activamente la conexión — aceptable, pero el comportamiento es silencioso. Ningún bloqueante.
+- [MEDIO] `backend/src/controllers/adminController.js:updateOrderStatus` — no valida que la transición de estado sea legal (p.ej. pasar de DELIVERED a PENDING). Cualquier admin puede fijar cualquier estado arbitrario. Riesgo de corrupción de historial.
+- [MEDIO] `selectedOptions` en `orderService.js` — los choiceIds enviados por el cliente se usan para consultar `optionChoice` en BD, pero no se verifica que esos choices pertenezcan al producto del item. Un cliente podría referenciar opciones de otro producto (aunque el total se recalcula correctamente, los datos de la línea quedarían inconsistentes).
+- [BAJO] `backend/src/services/authService.js:loginFailures` — Map en memoria. En reinicios del proceso o deploy multi-instancia el contador se resetea, anulando la protección de bloqueo temporal.
+- [BAJO] `backend/src/controllers/adminController.js:listOrders` — el parámetro `?status=` no se valida contra el enum `OrderStatus` antes de pasarlo al where de Prisma. Un valor inválido no rompe la consulta (Prisma lo ignoraría o lanzaría error) pero es superficie de entrada sin sanear.
+- [BAJO] Dependencia transitiva vulnerable: `argon2@0.31.2` tira de `@mapbox/node-pre-gyp@1.0.11` que incluye `tar<=7.5.10` (CVE path traversal, severity HIGH). Es una dependencia de build/instalación, no de runtime, pero conviene resolverla con `npm audit fix` cuando haya versión compatible de argon2.
 
 ---
 
 ## Bitácora
+
+### [2026-06-14] frontend-react — Backoffice admin `/adminoffice` + auth real + ProtectedRoute
+
+- **Qué cambió**:
+
+  **1. Auth real (`AuthContext`, `Login.jsx`, `authService.js`)**
+  - `frontend/src/services/authService.js` (nuevo): exporta `loginRequest`, `logoutRequest`, `getMeRequest`. Todos usan `credentials: 'include'` — el JWT viaja en cookie httpOnly, nunca en JS. NUNCA se loguean credenciales ni datos personales.
+  - `frontend/src/context/AuthContext.jsx` (reescrito): ya NO usa `sessionStorage` ni mock. Al montar, llama a `GET /api/auth/me` para hidratar el estado desde el servidor. Expone `{ isAuthenticated, user: { id, email, firstName, lastName, role }, loading, login, logout }`. `loading: true` mientras se resuelve el me-check (evita redirección prematura).
+  - `frontend/src/pages/Login.jsx` (actualizado): llama a `POST /api/auth/login` con `credentials: 'include'`, luego re-hidrata con `GET /api/auth/me` via `login()`. Muestra errores del servidor. Redirige a `location.state.from` (ruta guardada por ProtectedRoute) o a `/` si no hay.
+
+  **2. ProtectedRoute (`frontend/src/components/ProtectedRoute.jsx`, nuevo)**
+  - Props: `children`, `requireAdmin` (bool, default false).
+  - Mientras `loading` → spinner (evita redirección prematura).
+  - No autenticado → `<Navigate to="/login" state={{ from: pathname }} />`.
+  - Autenticado pero `role !== 'ADMIN'` (cuando `requireAdmin=true`) → mensaje 403 inline.
+  - Comentarios: la seguridad real la impone el backend; esto es UX solamente.
+
+  **3. Backoffice `/adminoffice` (`frontend/src/pages/AdminOffice.jsx` + subcomponentes)**
+  - Layout dos columnas: sidebar fijo (desktop ≥860px) + tab bar horizontal (móvil <860px).
+  - NO enlazado desde ninguna página pública. El admin accede por URL directa.
+  - Cuatro secciones en `frontend/src/pages/admin/`:
+    - `AdminOrders.jsx`: tabla de pedidos con filtro por estado, selector para cambiar estado via `PATCH /api/admin/orders/:id`, confirmación con nota interna usando `Modal` genérico.
+    - `AdminCatalog.jsx`: productos agrupados por categoría (incluyendo no disponibles), crear/editar/eliminar con formulario en `Modal` genérico.
+    - `AdminUsers.jsx`: tabla de usuarios CUSTOMER, drawer inline con direcciones (`GET /api/admin/users/:id/addresses`). RGPD: datos personales NO se loguean.
+    - `AdminBlacklist.jsx`: ver/añadir/eliminar entradas, badge de expiración, confirmaciones via `Modal` genérico.
+  - Todos los subcomponentes: estados de carga, error (con "Reintentar") y vacío.
+  - Botón "Cerrar sesión" en sidebar llama a `logout()` → `POST /api/auth/logout`.
+
+  **4. Capa de servicios (`frontend/src/services/adminService.js`, nuevo)**
+  - Centraliza todos los fetch de `/api/admin/*` con `credentials: 'include'`.
+  - Helper `adminFetch` maneja errores HTTP y parsea mensajes del servidor.
+  - Funciones: `fetchAdminOrders`, `updateOrderStatus`, `fetchAdminCatalog`, `createProduct`, `updateProduct`, `deleteProduct`, `fetchAdminUsers`, `fetchUserAddresses`, `fetchBlacklist`, `addBlacklistEntry`, `deleteBlacklistEntry`.
+
+  **5. Routing (`frontend/src/App.jsx` actualizado)**
+  - Nueva ruta `/adminoffice` envuelta en `<ProtectedRoute requireAdmin>`.
+  - AdminOffice renderiza su propio layout (sin Header/Footer público).
+  - Rutas públicas envueltas en helper `PublicLayout` (Header + main + Footer).
+  - Build verificado: 0 errores, 0 warnings.
+
+  **6. CSS (`frontend/src/index.css`)**
+  - Clases nuevas `.protected-route-*` para loading/403.
+  - Clases con prefijo `.admin-*`: layout panel, tablas, badges de estado, botones (primary/secondary/danger/sm), paginación, modales de admin, drawer de direcciones.
+  - Responsive: sidebar oculto en <860px; tab bar horizontal visible. Acciones de modal apiladas en ≤520px.
+
+- **Por qué**: Petición explícita del usuario.
+
+- **Supuestos / pendiente**:
+  - Gestión de alérgenos en formulario de producto NO implementada (solo nombre, descripción, precio, categoría, disponible). Iteración futura.
+  - La ruta `/adminoffice` no funciona en GitHub Pages (backend no desplegado). Solo en desarrollo local.
+  - `GET /api/admin/users/:id/addresses` acepta `{ addresses[] }` o `[]` directamente (el servicio normaliza ambas formas).
+
+- **Impacto para otros agentes**:
+  - `testing-expert`: flujos críticos: (1) visitar `/adminoffice` sin auth → redirige a `/login`; (2) login non-admin → 403; (3) login admin → panel visible; (4) logout → limpia estado; (5) cada sección: loading → data → error+retry.
+  - `qa-expert`: verificar panel en 360px sin overflow; tab bar con scroll horizontal; targets ≥44px; focus trap en Modal de confirmación.
+  - `security-expert`: verificar que `SameSite=Lax` en cookie sea suficiente para el panel admin. El frontend no envía ningún token en header.
+
+- **Acción requerida**:
+  - `testing-expert`: tests de los flujos de ProtectedRoute y panel admin.
+
+### [2026-06-14] dispatcher — Revisión y corrección del andamiaje no solicitado de `backend/`
+
+- **Qué cambió**: El usuario encargó SOLO el diseño de BD (ERD + `schema.prisma`), pero `backend-node` andamió además el backend Express completo (~28 archivos). El usuario eligió "revisarlo y corregirlo". Tras auditoría (Explore) se aplicaron correcciones:
+  - **Eliminada toda la funcionalidad de RESERVAS** (contradecía la decisión "sin reservas en BD por ahora" y no tenía tabla en el schema): borrados `routes/reservations.js`, `controllers/reservationController.js`, `services/reservationService.js`, `validators/reservations.js`; retirados import y `app.use` en `index.js`; retirado `reservationLimiter` de `rateLimiter.js`. Con ello desaparecen también los aforos/horarios inventados (`ZONE_CAPACITY`, slots 13:00–22:30) que vivían en el service de reservas.
+  - **Retirado código OTP muerto**: `verifyPhoneLimiter` (no usado) eliminado de `rateLimiter.js` y de `routes/auth.js`. OTP/SMS sigue como deuda futura (sin proveedor).
+  - **Turnstile**: bloque de config muerto retirado de `config/env.js` y de `.env.example` (estaba configurado pero NUNCA validado → falsa sensación de protección). Documentado como pendiente futuro.
+  - **JWT**: default de `jwtExpiresIn` corregido de `7d` a `15m` (alineado con `.env.example` y con el hallazgo ALTO de security-expert).
+  - **Admin email**: `seed.js` ahora lee `ADMIN_EMAIL` de env con default al email real del negocio (`lacasanostramataro@gmail.com`, ver `frontend/src/data/business.js`). No estaba inventado.
+- **Verificación**: `node --check` OK en todos los archivos tocados; `grep` confirma 0 referencias colgantes a reservas/limiters/turnstile.
+- **Pendiente NO corregido (requiere decisión, no tocado)**: en `orderService.js` se calculan `fraudFlags` pero `orderController.js` los ignora (no se persisten ni se muestran al admin). Recomendación: persistirlos en `OrderStatusHistory.note` o devolverlos al panel admin. Dejado como está para no alterar lógica de negocio sin confirmación.
+- **Impacto para otros agentes**:
+  - `backend-node`: el backend NO está instalado (sin `node_modules`) ni migrado. El andamiaje queda como base a revisar cuando se decida arrancar el backend formalmente. No reintroducir reservas sin decisión del usuario.
+  - `frontend-react`: `Reservas.jsx` sigue siendo mock en cliente; no hay endpoint de reservas en backend (correcto).
+- **Acción requerida**: Decisión del usuario sobre el flujo de `fraudFlags`. Confirmar si se autoriza arrancar/instalar el backend.
+
+### [2026-06-14] security-expert — Auditoría de seguridad del andamiaje de `backend/`
+
+- **Qué cambió**: Revisión estática completa del código de `backend/` generado por backend-node. Sin modificaciones de código; solo hallazgos y recomendaciones.
+- **Por qué**: Petición explícita del usuario antes de autorizar la integración con frontend.
+- **Hallazgos principales**:
+  - ALTO: JWT firmado con expiración de 7 días (default en `config.jwtExpiresIn`) mientras la cookie tiene maxAge de 7 días. La ventana de ataque en caso de robo de cookie es de 7 días. Recomendación: JWT a 15 min + refresh token rotation (tabla lista en schema).
+  - ALTO: Rate limiting por cuenta (login) está en Map en memoria — se reinicia con el proceso.
+  - MEDIO: Transiciones de estado de pedido no restringidas (admin puede poner DELIVERED -> PENDING).
+  - MEDIO: choiceIds de opciones no se validan como pertenecientes al producto del item.
+  - BAJO: `?status=` en listOrders sin validar contra enum. Dependencia transitiva tar vulnerable.
+- **Impacto para otros agentes**:
+  - `backend-node`: ver informe completo en el mensaje del security-expert. Bloqueantes para producción: JWT lifetime + refresh tokens. Para el MVP local son aceptables con advertencia.
+  - `frontend-react`: puede continuar la integración. El contrato de API es correcto y seguro en lo esencial.
+- **Acción requerida**:
+  - `backend-node`: (1) Reducir `JWT_EXPIRES_IN` a "15m" y `maxAge` de cookie a 15 min, o implementar refresh token rotation. (2) Mover el contador de fallos de login a Redis cuando se escale. (3) Añadir validación de enum en `?status=`. (4) Validar que choiceIds pertenecen al producto. (5) `npm audit fix` para resolver tar.
+
+
+### [2026-06-14] backend-node — Andamiaje completo de `backend/` (Node + Express + Prisma + auth + admin)
+
+- **Qué cambió**: Primera implementación real del backend de LCN. Creados todos los ficheros de la API.
+
+#### Ficheros nuevos en `backend/`
+
+```
+prisma/schema.prisma  (schema aprobado, ya existía — sin cambios)
+prisma/seed.js        Crea lacasanostramataro@gmail.com como ADMIN (argon2id)
+src/config/env.js     Variables de entorno validadas al arranque
+src/config/prisma.js  Singleton PrismaClient
+src/middleware/auth.js          requireAuth + requireAdmin (rol desde BD, nunca desde token)
+src/middleware/cors.js          CORS manual restringido a origenes configurados
+src/middleware/errorHandler.js  Manejo global (Zod 422, Prisma P2002, JWT, HTTP ops)
+src/middleware/honeypot.js      Rechaza si campo _honey viene relleno
+src/middleware/rateLimiter.js   express-rate-limit por endpoint
+src/middleware/requestLogger.js RGPD: solo timestamp|método|path|status|sid anónimo
+src/routes/admin.js             /api/admin/* (requireAuth + requireAdmin en todos)
+src/routes/auth.js              /api/auth/*
+src/routes/catalog.js           /api/catalog (público)
+src/routes/orders.js            /api/orders (requireAuth)
+src/routes/reservations.js      /api/reservations (público con rate limit)
+src/routes/users.js             /api/users/me (requireAuth, RGPD delete)
+src/controllers/adminController.js
+src/controllers/authController.js
+src/controllers/catalogController.js
+src/controllers/orderController.js
+src/controllers/reservationController.js
+src/services/authService.js     register, login (lock temporal), getMe, deleteAccount
+src/services/catalogService.js
+src/services/orderService.js    createOrder: recálculo total, blacklist, antifraude, idempotencia
+src/services/reservationService.js
+src/utils/httpError.js
+src/utils/jwt.js                signToken, setAuthCookie (httpOnly), clearAuthCookie
+src/validators/admin.js
+src/validators/auth.js
+src/validators/orders.js
+src/validators/reservations.js
+src/index.js                    Punto de entrada Express
+.env.example                    Variables documentadas (nunca .env real)
+.gitignore
+package.json                    scripts: dev, start, prisma:*
+README.md                       Setup rapido
+```
+
+#### Contratos de API implementados
+
+| Método | Ruta | Auth requerida | Body (request) | Respuesta |
+|--------|------|----------------|----------------|-----------|
+| POST | `/api/auth/register` | — | `{ name, apellidos, email, password, phone, consentConditions, consentPrivacy, consentMarketing? }` | `201 { user }` + cookie httpOnly |
+| POST | `/api/auth/login` | — | `{ email, password }` | `200 { user }` + cookie httpOnly |
+| POST | `/api/auth/logout` | — | — | `200` + clear cookie |
+| GET | `/api/auth/me` | JWT cookie | — | `200 { user }` |
+| DELETE | `/api/users/me` | JWT cookie | — | `200` (RGPD soft-delete + anonimización) |
+| GET | `/api/catalog` | — | — | `200 [{ id(=slug), slug, label, heading, products[{ id, name, description, price, allergens[], options? }] }]` |
+| POST | `/api/orders` | JWT cookie | `{ idempotencyKey(uuid), mode, paymentMethod, timing, contactPhone, items[{ productId, quantity, selectedOptions?, removedIngredients?, notes? }], address?, notes? }` | `201 { orderId, status, total, confirmationTitle?, confirmationMessage? }` |
+| POST | `/api/reservations` | — | `{ date, time, zone, guests }` | `200 { availableSlots[] }` |
+| GET | `/api/admin/orders` | ADMIN | query: `?status=&page=&limit=` | `200 { data[], pagination }` |
+| PATCH | `/api/admin/orders/:id` | ADMIN | `{ status, note? }` | `200 { order }` + fila en OrderStatusHistory |
+| GET | `/api/admin/catalog` | ADMIN | — | Categorías + productos (incluye no disponibles) |
+| POST | `/api/admin/catalog/products` | ADMIN | `{ categoryId, name, description?, price, available?, allergenIds? }` | `201 { product }` |
+| PATCH | `/api/admin/catalog/products/:id` | ADMIN | campos parciales | `200 { product }` |
+| DELETE | `/api/admin/catalog/products/:id` | ADMIN | — | `204` |
+| GET | `/api/admin/users` | ADMIN | query: `?page=&limit=` | `200 { data[], pagination }` (solo CUSTOMER, excluye deleted) |
+| GET | `/api/admin/users/:id/addresses` | ADMIN | — | `200 { addresses[] }` |
+| GET | `/api/admin/blacklist` | ADMIN | — | `200 { data[] }` |
+| POST | `/api/admin/blacklist` | ADMIN | `{ type, value, reason, expiresAt? }` | `201 { entry }` (expiry default 1 año) |
+| DELETE | `/api/admin/blacklist/:id` | ADMIN | — | `204` |
+
+#### Decisiones de arquitectura
+
+- **Auth**: JWT en cookie httpOnly `lcn_token` (SameSite=Lax, Secure en prod). Payload mínimo: solo `sub = userId`. El rol se lee siempre de BD en cada request — el token nunca transporta el rol.
+- **Rol ADMIN**: la guarda de `/api/admin/*` es `requireAdmin` que comprueba `req.user.role === 'ADMIN'`. El usuario se resuelve desde BD en `requireAuth`. El email no es el criterio; el criterio es la columna `role` en BD. Solo el seed puede crear un ADMIN.
+- **Estado del pedido**: todos nacen en `PENDING`. No hay auto-confirmación (eliminada por decisión del usuario, 2026-06-14). El admin confirma manualmente desde el backoffice (`PATCH /api/admin/orders/:id`). Cada cambio de estado escribe una fila en `OrderStatusHistory`.
+- **Recálculo de total**: `orderService.createOrder` calcula el total en servidor (precio de BD × cantidad + priceDelta de opciones). El campo `total` que el cliente pudiera enviar es ignorado.
+- **Idempotencia**: `idempotencyKey` (UUID v4) en el body de `POST /api/orders`. Si ya existe un pedido con ese key en las últimas 24h, se devuelve el existente con HTTP 200.
+- **Blacklist**: modelo `Blacklist` (tabla `blacklist`) consultado antes de crear el pedido. Tipos: `phone|address|email|ip`. Expiry máximo 1 año (RGPD).
+- **RGPD soft-delete**: `DELETE /api/users/me` sobrescribe email/firstName/lastName/phone con valores anónimos y fija `deletedAt`.
+
+#### Variables de entorno necesarias
+
+```
+DATABASE_URL               # PostgreSQL connection string
+PORT                       # (default 3001)
+NODE_ENV                   # development | production
+JWT_SECRET                 # 64 bytes hex aleatorios
+JWT_EXPIRES_IN             # (default "15m")
+JWT_REFRESH_SECRET         # 64 bytes hex (para refresh tokens, futuro)
+CORS_ORIGINS               # separados por coma
+ADMIN_INITIAL_PASSWORD     # para el seed (min 12 chars)
+TURNSTILE_ENABLED          # false en dev
+TURNSTILE_SECRET_KEY       # Cloudflare Turnstile (si enabled)
+```
+
+#### Deuda / pendiente
+
+- Turnstile: middleware planificado; validación real contra API Cloudflare no conectada aún.
+- OTP de teléfono: `phoneVerified` en User listo; tabla `PhoneOtp` como deuda futura (sin proveedor SMS).
+- Refresh tokens: tabla `RefreshToken` en schema lista; rotación no implementada en esta iteración.
+- `POST /api/jobs` (candidaturas): endpoint no implementado.
+
+- **Impacto para otros agentes**:
+  - `frontend-react`: (1) Retirar campo `total` del body de `POST /api/orders`. (2) Añadir `idempotencyKey` (uuid v4) al body. (3) Añadir `contactPhone` al body. (4) Los fetch de auth deben usar `credentials: 'include'` — el JWT viaja en cookie, no en header. (5) `VITE_API_URL=http://localhost:3001` en `frontend/.env.local`. (6) Descomentar el bloque fetch en `catalogService.js`.
+  - `security-expert`: revisar antes del primer despliegue: Turnstile real, refresh token rotation, OTP SMS.
+  - `testing-expert`: tests con Jest + Supertest necesarios para: auth flows, order creation (total recalculado, idempotencia, blacklist), admin endpoints (bloqueo a no-admins), RGPD delete.
+
+- **Acción requerida**:
+  - `frontend-react`: actualizar `catalogService.js` y formularios de pedido/auth para la API real.
+  - `testing-expert`: escribir tests de integración.
+  - Setup de BD local (ver `backend/README.md`): crear BD, habilitar extensiones, ejecutar `npm run prisma:migrate`, `npm run prisma:seed`.
+
+### [2026-06-14] backend-node — Diseno de BD APROBADO + schema.prisma generado
+
+- **Qué cambió**:
+  - `docs/database/schema.md` actualizado: estado cambiado a APROBADO, diagrama ERD y DBML actualizados con las tres entidades nuevas (`RefreshToken`, `OrderStatusHistory`, `JobApplication` definitiva), seccion "Decisiones abiertas" reemplazada por "Decisiones finales aprobadas (2026-06-14)", logica de autoconfirmacion eliminada (umbrales 40/50 EUR), tabla `Config` NO incluida, tabla `PhoneOtp` NO incluida (anotada como deuda futura).
+  - `backend/prisma/schema.prisma` generado (sustituye borrador previo que usaba cuid y modelos distintos). Schema completo con:
+    - `datasource db { provider = "postgresql"; url = env("DATABASE_URL") }`
+    - `generator client { provider = "prisma-client-js"; previewFeatures = ["postgresqlExtensions"] }`
+    - Declaracion de extensiones: `pgcrypto` (gen_random_uuid), `citext` (email case-insensitive)
+    - Modelos en PascalCase, tablas en snake_case via `@@map`, columnas via `@map`
+    - PKs UUID con `@default(dbgenerated("gen_random_uuid()")) @db.Uuid`
+    - Precios con `@db.Decimal(10, 2)`
+    - `email @db.Citext` en User
+    - `removedIngredients String[]` (array nativo PostgreSQL) en OrderLine
+    - `selectedOptions Json?` en OrderLine
+    - `@updatedAt` en todos los modelos que lo necesitan
+    - Indices `@@index` y `@@unique` en todos los campos de busqueda frecuente
+  - `backend/.env.example` actualizado: separados `JWT_SECRET`/`JWT_EXPIRES_IN` (access token, 15m) de `JWT_REFRESH_SECRET`/`JWT_REFRESH_EXPIRES_IN` (refresh token, 30d).
+
+- **Entidades en el schema final**:
+  | Tabla | Descripcion |
+  |-------|-------------|
+  | `users` | Usuarios. citext email, soft-delete RGPD, phone_verified preparado para OTP futuro. |
+  | `refresh_tokens` | Sesiones persistentes con revocacion. token_hash SHA-256; nunca token en claro. |
+  | `categories` | Categorias del catalogo (slug, label, heading, sort_order). |
+  | `products` | Productos. Precio autoritativo. available para ocultar sin borrar. |
+  | `allergens` | 14 alergenos UE de declaracion obligatoria. |
+  | `product_allergens` | Union N:M Product-Allergen. PK compuesta. |
+  | `option_groups` | Grupos de opciones por producto (ej: "Elige tu salsa"). |
+  | `option_choices` | Opciones concretas con price_delta. |
+  | `ingredients` | Ingredientes removibles por el cliente. |
+  | `orders` | Pedidos. Todos nacen en PENDING. Confirmacion manual del admin. idempotency_key UNIQUE. Total recalculado en servidor. |
+  | `order_lines` | Lineas del pedido. Snapshots inmutables (nombre + precio en el momento de compra). Referencia blanda a Product. |
+  | `order_status_history` | Historial de transiciones de estado. changed_by nullable (sistema vs admin). |
+  | `blacklist` | Lista negra anti-fraude. expires_at para purga RGPD (max 1 anyo). |
+  | `job_applications` | Candidaturas de empleo. Independiente de User. CV en servidor. |
+
+- **Enums**: `Role` (CUSTOMER/ADMIN), `OrderStatus` (PENDING/CONFIRMED/PREPARING/READY/OUT_FOR_DELIVERY/DELIVERED/CANCELLED), `OrderMode` (PICKUP/DELIVERY), `OrderTiming` (ASAP/SCHEDULED), `PaymentMethod` (CARD/CASH), `BlacklistType` (phone/address/email/ip).
+
+- **Lo que NO se incluyo (decisiones del usuario)**:
+  - `PhoneOtp`: sin proveedor SMS por ahora. Deuda futura. `phone_verified` en User queda como preparacion.
+  - `Config`: sin parametros configurables desde backoffice en MVP. Umbrales de confirmacion eliminados (todos los pedidos son manuales).
+  - Confirmacion automatica: eliminada. TODO pedido nace en PENDING y el admin decide.
+
+- **Por qué**: El usuario aprobo el diseno ERD y confirmo las 6 decisiones abiertas.
+
+- **Estado del backend**: SOLO el schema.prisma ha sido generado. El backend sigue sin andamiar (sin `package.json`, sin rutas, sin controladores). `npx prisma migrate dev` aun no se ha ejecutado.
+
+- **Impacto para otros agentes**:
+  - `frontend-react`: sin cambios. Los contratos de API siguen pendientes de implementacion.
+  - `security-expert`: el schema incorpora los requisitos anti-fraude (idempotency_key, blacklist, soft-delete RGPD, refresh tokens con revocacion). Revisar cuando se implementen los endpoints.
+  - `testing-expert`: cuando se andamie el backend, necesitara tests de: creacion de Order (status=PENDING), consulta a Blacklist antes de procesar, insercion en OrderStatusHistory en cada transicion, y revocacion de RefreshToken.
+
+- **Acción requerida**:
+  - Proximos pasos recomendados (en este orden, sin ejecutar aun):
+    1. `npm init` o instalar dependencias en `backend/` (express, prisma, @prisma/client, etc).
+    2. `CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE EXTENSION IF NOT EXISTS citext;` en la BD.
+    3. `npx prisma migrate dev --name init` para crear las tablas.
+    4. Seed del catalogo desde `frontend/src/data/catalogMockData.js` via `backend/prisma/seed.js`.
+    5. Implementar endpoints: `GET /api/catalog`, `POST /api/orders`, `POST /api/reservations`, `POST /api/auth/login`, `POST /api/auth/register`.
+
+### [2026-06-14] backend-node — PROPUESTA de modelo de datos (ERD) pendiente de aprobacion
+
+- **Qué cambió**: Creado `docs/database/schema.md` con el diseño completo del modelo de datos para PostgreSQL + Prisma. Incluye: diagrama ERD (Mermaid), DBML para dbdiagram.io, descripcion por entidad y campo, enums, decisiones de diseño aplicadas y 6 decisiones abiertas que el usuario debe confirmar antes de generar `schema.prisma`.
+- **Estado**: PROPUESTA. NO se ha generado `schema.prisma` ni ningun codigo. Solo documentacion para revision y aprobacion.
+- **Entidades diseñadas**: `User`, `Category`, `Product`, `Allergen`, `ProductAllergen`, `OptionGroup`, `OptionChoice`, `Ingredient`, `Order`, `OrderLine`, `Blacklist`, `JobApplication` (opcional).
+- **Enums**: `Role` (CUSTOMER/ADMIN), `OrderStatus` (PENDING/CONFIRMED/PREPARING/READY/OUT_FOR_DELIVERY/DELIVERED/CANCELLED), `OrderMode` (PICKUP/DELIVERY), `OrderTiming` (ASAP/SCHEDULED), `PaymentMethod` (CARD/CASH), `BlacklistType` (phone/address/email/ip).
+- **Por qué**: Petición explícita del usuario para visualizar y aprobar el esquema antes de implementarlo.
+- **Impacto para otros agentes**:
+  - `frontend-react`: el contrato de `GET /api/catalog` confirma la forma `{ id, slug, label, heading, products[{ id, name, description, price, allergens[], options[], ingredients[] }] }`. Compatible con `catalogMockData.js` actual.
+  - `security-expert`: el esquema incorpora todos los requisitos anti-fraude: `idempotency_key` en `Order`, `phone_verified` en `User`, `Blacklist` con `expires_at`, soft delete RGPD en `User`, snapshots inmutables en `OrderLine`.
+  - `testing-expert`: cuando se apruebe y genere `schema.prisma`, necesitara tests de la logica de confirmacion automatica vs manual de pedidos y de la consulta a `Blacklist`.
+- **Decisiones abiertas que el usuario debe confirmar** (en `schema.md` seccion 6):
+  1. Umbral de confirmacion automatica (40 EUR / 50 EUR / configurable).
+  2. Tabla `Config` para parametros del backoffice.
+  3. `JobApplication` en el MVP o en iteracion 2.
+  4. OTP en PostgreSQL (tabla `PhoneOtp`) o en Redis/memoria.
+  5. Historial de estados del pedido (`OrderStatusHistory`) o solo estado actual.
+  6. Refresh tokens en BD o JWT stateless.
+- **Acción requerida**: El usuario debe revisar `docs/database/schema.md`, confirmar las 6 decisiones abiertas y dar la aprobacion para generar `schema.prisma`.
 
 ### [2026-06-14] knowledge-coordinator — Plan anti-fraude incorporado a instrucciones de backend-node
 
