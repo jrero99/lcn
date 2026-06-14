@@ -66,6 +66,8 @@ gha-creds-*.json
 # Si Prisma genera una shadow/local db dentro de prisma/
 prisma/*.db
 prisma/dev.db*
+# ...pero las migraciones de Prisma (.sql) SÍ deben versionarse:
+!**/prisma/migrations/**/*.sql
 
 # --- Originales de cámara / fotos sin optimizar -----------------------------
 # Los RAW/originales pesan ~100 MB cada uno y no deben entrar en git.
