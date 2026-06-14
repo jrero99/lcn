@@ -68,6 +68,64 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 
 ## Bitácora
 
+### [2026-06-14] frontend-react — Catálogo dinámico: `fetchCatalog()` consume `GET /api/catalog`
+
+- **Qué cambió**:
+  - `frontend/src/services/catalogService.js`: `fetchCatalog()` ahora hace `fetch(\`${API_BASE_URL}/api/catalog\`)` (antes devolvía el mock `CATEGORIES`). Eliminada la dependencia de `catalogMockData.js`. Lanza error si la respuesta no es OK (los consumidores ya tienen estado de error + reintento).
+  - `frontend/.env.local` (NO versionado, `.env.*` ignorado): `VITE_API_URL=http://localhost:3001` para que el dev server (Vite :5173) llame al backend local.
+  - `frontend/src/data/allergens.js` (nuevo): mapa de los 14 alérgenos UE → etiqueta legible (`lacteos`→`Lácteos`, `frutos-de-cascara`→`Frutos de cáscara`, `sesamo`→`Sésamo`...). `formatAllergens(names)`. El backend devuelve nombres normalizados; este helper los presenta con acentos. Fallback capitaliza valores desconocidos.
+  - `ProductCard.jsx`, `ProductModal.jsx`, `Carta.jsx`: usan `formatAllergens(product.allergens)` en vez de `.join(', ')`.
+- **Verificación**: backend levantado y `GET /api/catalog` → HTTP 200, 12 categorías / 82 productos, cabeceras CORS correctas para `http://localhost:5173`. `npm run build` del frontend OK (0 errores).
+- **Cómo probar en local**: terminal 1 → `cd backend && npm run dev`; terminal 2 → `cd frontend && npm run dev`. La carta y el flujo de pedido cargan desde la BD.
+- **Pendiente / notas**:
+  - En producción (GitHub Pages) el catálogo NO carga: el backend sigue sin desplegar. `VITE_API_URL` vacío → ruta relativa sin servidor. Esperado.
+  - `catalogMockData.js` queda huérfano (ya nadie lo importa). Conservado como referencia de contrato; se puede borrar más adelante.
+  - El endpoint devuelve `options[].choices[].priceExtra`; la UI aún no suma ese suplemento al total (todos los priceDelta actuales son 0).
+
+### [2026-06-14] backend-node — Seed del catálogo completo (`backend/prisma/seedCatalog.js`)
+
+- **Qué cambió**:
+  - Nuevo archivo `backend/prisma/seedCatalog.js` (ESM, mismo estilo que `seed.js`).
+  - Seed idempotente del catálogo completo de La Casa Nostra: 12 categorías, 80 productos, 14 alérgenos UE, ingredientes removibles y grupos de opciones para hamburguesas.
+  - Nuevo script en `backend/package.json`: `"prisma:seed:catalog": "node prisma/seedCatalog.js"`.
+  - Sintaxis verificada con `node --check` → OK.
+
+- **Estrategia de idempotencia**:
+  - Categorías: `upsert` por `slug` (clave estable).
+  - Alérgenos: `upsert` por `name`.
+  - Productos: borrar-y-recrear por categoría (`deleteProductsByCategory` elimina en cascada `productAllergens`, `optionChoices`, `optionGroups`, `ingredients` y luego `products`). Las `orderLines` existentes quedan con `productId = null` (referencia blanda nullable en el schema).
+
+- **Categorías incluidas** (slugs exactos del mock):
+  `classics` (20 productos), `tapas` (10), `salads` (6), `burgers` (9), `vegetarians` (5), `chicken` (6), `sandwiches` (4), `american` (2), `pork-loin` (2), `loins` (3), `combos` (10), `desserts` (5). Total: 82 productos. La categoría `drinks` NO está incluida (la carta PDF no trae bebidas).
+
+- **Alérgenos**: 14 alérgenos UE creados con emoji de icono. Asignados a cada producto por inferencia conservadora a partir de ingredientes. **No validados por especialista** — comentario de aviso legal en cabecera del archivo.
+
+- **Opciones (OptionGroup/OptionChoice)**: Las hamburguesas (categoría `burgers`) tienen dos grupos: "Elige tu acompañante" (Bravas/Fritas) y "Elige tu salsa" (Brava/Alioli/BBQ/César/Mostaza y miel/Sin salsa), todos con `priceDelta 0`. Equivale a `BURGER_OPTIONS` del mock.
+
+- **Opciones NO modeladas** (documentadas en comentario al final del archivo):
+  - "Sin gluten +1,50 EUR"
+  - "Pan gallego +0,50 EUR"
+  - "Hamburguesa 200g +2,00 EUR"
+  - "Americanos: cambiar salchicha por cervela 190g +1,00 EUR"
+
+- **Por qué**: Petición explícita del usuario — seed listo para ejecutar en cuanto la BD esté migrada.
+
+- **Cómo ejecutar**:
+  ```
+  # Prerequisito: BD migrada (npx prisma migrate dev --name init)
+  cd backend
+  npm run prisma:seed:catalog
+  ```
+
+- **Impacto para otros agentes**:
+  - `frontend-react`: cuando el backend arranque, `GET /api/catalog` devolverá los datos de esta tabla. El shape es compatible con `catalogMockData.js`. Desbloquear el fetch real en `frontend/src/services/catalogService.js`.
+  - `testing-expert`: tests de integración de `GET /api/catalog` pueden basarse en los slugs y nombres de producto de este seed.
+  - Alérgenos: revisar con el negocio antes de producción (requisito legal UE).
+
+- **Acción requerida**:
+  - El negocio debe revisar y validar los alérgenos asignados a cada producto ANTES de poner en producción.
+  - Las cuatro opciones documentadas (sin gluten, pan gallego, 200g, cervela) quedan pendientes de decisión del usuario para una iteración futura.
+
 ### [2026-06-14] frontend-react — Backoffice admin `/adminoffice` + auth real + ProtectedRoute
 
 - **Qué cambió**:

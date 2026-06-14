@@ -12,6 +12,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { formatAllergens } from '../data/allergens.js'
 
 function formatPrice(price) {
   return price.toFixed(2).replace('.', ',') + ' €'
@@ -167,7 +168,7 @@ export default function ProductModal({ product, onClose, onAdd, readOnly = false
           {product.allergens && product.allergens.length > 0 && (
             <p className="modal-product-allergens" aria-label="Alérgenos">
               <span className="allergen-label">Alérgenos: </span>
-              {product.allergens.join(', ')}
+              {formatAllergens(product.allergens)}
             </p>
           )}
 

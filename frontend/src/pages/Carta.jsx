@@ -27,6 +27,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { fetchCatalog } from '../services/catalogService.js'
+import { formatAllergens } from '../data/allergens.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import CategoryNav from '../components/CategoryNav.jsx'
 import ProductCard from '../components/ProductCard.jsx'
@@ -288,7 +289,7 @@ function ReadOnlyProductCard({ product, onOpen }) {
         {product.allergens && product.allergens.length > 0 && (
           <p className="product-card-allergens" aria-label="Alérgenos">
             <span className="allergen-label">Alérgenos: </span>
-            {product.allergens.join(', ')}
+            {formatAllergens(product.allergens)}
           </p>
         )}
 

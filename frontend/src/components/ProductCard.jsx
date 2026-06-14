@@ -3,6 +3,8 @@
 // The entire card is clickable to open the product detail modal (onOpen).
 // The "+" button adds one unit directly to the cart without opening the modal (onAdd).
 
+import { formatAllergens } from '../data/allergens.js'
+
 function formatPrice(price) {
   return price.toFixed(2).replace('.', ',') + ' €'
 }
@@ -32,7 +34,7 @@ export default function ProductCard({ product, onAdd, onOpen }) {
         {product.allergens && product.allergens.length > 0 && (
           <p className="product-card-allergens" aria-label="Alérgenos">
             <span className="allergen-label">Alérgenos: </span>
-            {product.allergens.join(', ')}
+            {formatAllergens(product.allergens)}
           </p>
         )}
 
