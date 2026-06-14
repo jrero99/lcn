@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Modal from '../components/Modal.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
 
 // Registration page — /registro
 // Auth is mock only. Integration point: TODO POST /api/auth/register
 export default function Registro() {
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [nombre, setNombre] = useState('')
   const [apellidos, setApellidos] = useState('')
   const [email, setEmail] = useState('')
@@ -46,9 +48,16 @@ export default function Registro() {
     if (Object.keys(errs).length > 0) return
 
     // TODO: replace mock with POST /api/auth/register
-    // Body: { nombre, apellidos, email, telefono, aceptaCondiciones: true, aceptaPrivacidad: true, aceptaComunicaciones: comerciales }
-    // NEVER log personal data or passwords
+    // Body: { nombre, apellidos, email, telefono, aceptaCondiciones: true,
+    //         aceptaPrivacidad: true, aceptaComunicaciones: comerciales }
+    // On success: the real flow would navigate to /login (or auto-login).
+    // NEVER log personal data or passwords.
     console.info('[Registro] Mock submit OK')
+
+    // Mark the user as authenticated after mock registration (mock only).
+    // In the real flow, registration usually redirects to login rather than
+    // auto-logging in — adjust when backend exists (coordinate with security-expert).
+    login({ email, name: nombre })
 
     setWelcomeOpen(true)
   }

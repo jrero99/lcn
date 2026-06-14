@@ -5,18 +5,20 @@
 //
 // Cart state is local (useState) for now.
 // TODO: Lift cart state up or move to Context/Zustand when checkout page is built.
-// TODO: Replace CATEGORIES mock data with a real API call: GET /api/catalog
-//       (endpoint not yet defined; coordinate with backend-node).
-//       The API response must include the `options` field per product (see catalogMockData.js).
+//
+// Catalog data is loaded asynchronously via catalogService.fetchCatalog().
+// The service currently returns mock data. When GET /api/catalog is implemented
+// on the backend, only catalogService.js needs to change — this component stays
+// as-is.
 //
 // TODO (cart keying): currently the cart is keyed by product.id. Products with different
 // option selections are treated as the same cart line (quantity increments). In the future,
 // when the backend supports order lines with variants, each distinct combination of
 // product + options should be a separate cart line (key = productId + serialised selections).
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CATEGORIES } from '../data/catalogMockData.js'
+import { fetchCatalog } from '../services/catalogService.js'
 import CategoryNav from '../components/CategoryNav.jsx'
 import ProductCard from '../components/ProductCard.jsx'
 import ProductModal from '../components/ProductModal.jsx'
@@ -24,17 +26,61 @@ import CheckoutBar from '../components/CheckoutBar.jsx'
 
 export default function OrderCatalog({ mode = 'domicilio' }) {
   const navigate = useNavigate()
-  const [activeCategory, setActiveCategory] = useState(CATEGORIES[0].id)
+
+  // Catalog async state
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Active category tab — null until the catalog loads
+  const [activeCategory, setActiveCategory] = useState(null)
+
   // cart: { [productId]: { product, quantity } }
   const [cart, setCart] = useState({})
+
   // selectedProduct: the product whose detail modal is currently open, or null
   const [selectedProduct, setSelectedProduct] = useState(null)
+
   const sectionRefs = useRef({})
 
+  // Load catalog on mount. Guard against setState after unmount.
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadCatalog() {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await fetchCatalog()
+        if (!cancelled) {
+          setCategories(data)
+          // Set the first category as active once data arrives
+          if (data.length > 0) {
+            setActiveCategory(data[0].id)
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message ?? 'Error al cargar la carta')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadCatalog()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Add one unit of a product to the cart.
-  // `_options` is captured from the modal but currently ignored for cart keying
-  // (see TODO at the top of this file).
-  const handleAddToCart = useCallback((product, _options) => {
+  // `_customization` (selectedOptions, removedIngredients, notes) is captured from
+  // the modal but currently ignored for cart keying (see TODO at the top of this file).
+  const handleAddToCart = useCallback((product, _customization) => {
     setCart((prev) => {
       const existing = prev[product.id]
       return {
@@ -93,18 +139,66 @@ export default function OrderCatalog({ mode = 'domicilio' }) {
     })
   }
 
+  // --- Loading state ---
+  if (loading) {
+    return (
+      <div className="catalog-status-wrap" aria-live="polite">
+        <p className="catalog-status-msg">Cargando la carta…</p>
+      </div>
+    )
+  }
+
+  // --- Error state ---
+  if (error) {
+    return (
+      <div className="catalog-status-wrap" aria-live="assertive">
+        <p className="catalog-status-msg catalog-status-msg--error">
+          No se ha podido cargar la carta.
+        </p>
+        <p className="catalog-status-hint">{error}</p>
+        <button
+          className="btn btn-solid catalog-retry-btn"
+          onClick={() => {
+            // Re-trigger the effect by resetting error + loading
+            setError(null)
+            setLoading(true)
+            fetchCatalog()
+              .then((data) => {
+                setCategories(data)
+                if (data.length > 0) setActiveCategory(data[0].id)
+              })
+              .catch((err) => setError(err.message ?? 'Error al cargar la carta'))
+              .finally(() => setLoading(false))
+          }}
+        >
+          Reintentar
+        </button>
+      </div>
+    )
+  }
+
+  // --- Empty catalog (shouldn't happen in practice, but guard anyway) ---
+  if (categories.length === 0) {
+    return (
+      <div className="catalog-status-wrap" aria-live="polite">
+        <p className="catalog-status-msg">La carta no está disponible en este momento.</p>
+      </div>
+    )
+  }
+
+  // --- Main render ---
   return (
     <div className="order-catalog">
       {/* Sticky category navigation bar */}
       <CategoryNav
-        categories={CATEGORIES}
+        categories={categories}
         activeId={activeCategory}
         onSelect={handleCategorySelect}
       />
 
       {/* Product sections — one per category */}
       <div className="order-catalog-content">
-        {CATEGORIES.map((category) => (
+        {categories.map((category) => (
           <section
             key={category.id}
             id={`cat-${category.id}`}

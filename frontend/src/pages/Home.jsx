@@ -72,7 +72,7 @@ export default function Home() {
           Carnes jugosas, opciones veggie, salsas caseras y pan que marca la
           diferencia.
         </p>
-        <Link className="btn btn-outline" to="/hacer-pedido">
+        <Link className="btn btn-outline" to="/carta">
           Descubre nuestra carta completa
         </Link>
       </section>

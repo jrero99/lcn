@@ -104,7 +104,7 @@ h1, h2, h3, h4 {
 }
 .nav-link {
   font-family: var(--font-heading);
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-decoration: none;
@@ -693,6 +693,40 @@ img.media-box {
   margin-bottom: clamp(1.25rem, 3vw, 2rem);
 }
 
+/* --- Catalog async status (loading / error / empty) --- */
+.catalog-status-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 40vh;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.catalog-status-msg {
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.catalog-status-msg--error {
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.catalog-status-hint {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.catalog-retry-btn {
+  margin-top: 0.5rem;
+}
+
 /* --- Grid de productes --- */
 .product-grid {
   display: grid;
@@ -999,6 +1033,90 @@ img.media-box {
 }
 
 .radio-label-text { line-height: 1.2; }
+
+/* ---------- Quitar ingredientes (checkboxes) ---------- */
+.modal-ingredient-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.ingredient-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 0.9rem;
+  user-select: none;
+}
+/* Visually-hidden real checkbox (kept in DOM for keyboard/AT) */
+.ingredient-option input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+.ingredient-check {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid #cdc6ba;
+  border-radius: 5px;
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+/* Checked (= ingredient kept): brand fill + tick */
+.ingredient-option:not(.ingredient-option--removed) .ingredient-check {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+.ingredient-option:not(.ingredient-option--removed) .ingredient-check::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--cream);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+/* Removed: dim + strike-through label */
+.ingredient-option--removed .ingredient-label-text {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.ingredient-option input[type="checkbox"]:focus-visible ~ .ingredient-check {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.ingredient-label-text { line-height: 1.2; }
+
+/* ---------- Nota / especificación ---------- */
+.modal-notes {
+  margin-top: 0.25rem;
+}
+.modal-notes .modal-option-legend {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+.modal-notes-input {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--ink);
+  padding: 0.7rem 0.85rem;
+  border: 1.5px solid #ddd6cc;
+  border-radius: 12px;
+  resize: vertical;
+  transition: border-color 0.15s ease;
+}
+.modal-notes-input::placeholder { color: var(--muted); }
+.modal-notes-input:focus {
+  outline: none;
+  border-color: var(--brand);
+}
 
 /* Sticky footer inside the modal: price + CTA button */
 .modal-footer {
@@ -1742,6 +1860,58 @@ img.media-box {
 .btn-block-dark:focus-visible {
   outline: 2px solid var(--ink-green);
   outline-offset: 3px;
+}
+
+/* ==========================================================
+   Página: Carta (solo lectura, /carta)
+   ========================================================== */
+
+/* Login CTA banner — shown at the bottom of /carta for anonymous users
+   in place of the CheckoutBar. Mirrors the CheckoutBar height/position
+   so the catalog content has the same bottom padding. */
+.carta-login-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: var(--cream);
+  border-top: 1.5px solid var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem clamp(1rem, 4vw, 2.5rem);
+}
+
+.carta-login-banner-text {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.carta-login-banner-btn {
+  flex-shrink: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+/* On mobile, stack the banner vertically */
+@media (max-width: 520px) {
+  .carta-login-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 1rem clamp(1rem, 4vw, 2rem);
+  }
+  .carta-login-banner-text {
+    text-align: center;
+  }
+  .carta-login-banner-btn {
+    justify-content: center;
+    width: 100%;
+  }
 }
 
 /* ==========================================================

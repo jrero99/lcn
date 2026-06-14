@@ -6,7 +6,7 @@ import Logo from './Logo.jsx'
 // - `to`   : internal SPA route → rendered as <Link> (no full-page reload).
 // - `href` : home-section anchor → rendered as <a>.
 const NAV_LINKS = [
-  { label: 'La Carta',             href: '/#carta' },
+  { label: 'La Carta',             to: '/carta' },
   { label: 'Trabaja con Nosotros', to: '/trabaja' },
   { label: 'Iniciar Sesión',       to: '/login' },
 ]

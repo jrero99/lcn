@@ -16,7 +16,7 @@ const HOURS = [
 const PAGE_LINKS = [
   { label: 'Hacer pedido',        type: 'link',   to: '/hacer-pedido' },
   { label: 'Reservar',            type: 'link',   to: '/reservar' },
-  { label: 'La Carta',            type: 'anchor', href: '/#carta' },
+  { label: 'La Carta',            type: 'link',   to: '/carta' },
   { label: 'Trabaja con Nosotros',type: 'link',   to: '/trabaja' },
   { label: 'Política de Privacidad', type: 'link', to: '/politica-privacidad' },
   { label: 'Aviso Legal',         type: 'link',   to: '/aviso-legal' },

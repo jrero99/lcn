@@ -11,6 +11,7 @@
 //   - Respects prefers-reduced-motion (no entry animation in that case).
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 
 function formatPrice(price) {
   return price.toFixed(2).replace('.', ',') + ' €'
@@ -24,7 +25,10 @@ function buildInitialSelections(options) {
   return Object.fromEntries(options.map((group) => [group.id, group.choices[0].id]))
 }
 
-export default function ProductModal({ product, onClose, onAdd }) {
+// `readOnly` prop: when true (used on /carta for anonymous users), the
+// "Añadir al pedido" button is hidden and option inputs are disabled.
+// The modal still opens for informational purposes (name, description, allergens).
+export default function ProductModal({ product, onClose, onAdd, readOnly = false }) {
   const titleId = `modal-title-${product.id}`
   const dialogRef = useRef(null)
   const closeBtnRef = useRef(null)
@@ -34,10 +38,16 @@ export default function ProductModal({ product, onClose, onAdd }) {
   const [selections, setSelections] = useState(() =>
     buildInitialSelections(product.options)
   )
+  // removedIngredients: list of ingredient names the customer unchecked (wants out)
+  const [removedIngredients, setRemovedIngredients] = useState([])
+  // notes: free-text specification the customer wants to add to this line
+  const [notes, setNotes] = useState('')
 
-  // Reset selections when the product changes (user opens a different card)
+  // Reset all customisation when the product changes (user opens a different card)
   useEffect(() => {
     setSelections(buildInitialSelections(product.options))
+    setRemovedIngredients([])
+    setNotes('')
   }, [product])
 
   // Lock body scroll
@@ -97,7 +107,11 @@ export default function ProductModal({ product, onClose, onAdd }) {
   }
 
   function handleAdd() {
-    onAdd(product, selections)
+    onAdd(product, {
+      selectedOptions: selections,
+      removedIngredients,
+      notes: notes.trim(),
+    })
     onClose()
   }
 
@@ -105,7 +119,17 @@ export default function ProductModal({ product, onClose, onAdd }) {
     setSelections((prev) => ({ ...prev, [groupId]: choiceId }))
   }
 
+  // Toggle an ingredient in/out of the removed list.
+  function handleIngredientToggle(ingredient) {
+    setRemovedIngredients((prev) =>
+      prev.includes(ingredient)
+        ? prev.filter((i) => i !== ingredient)
+        : [...prev, ingredient]
+    )
+  }
+
   const hasOptions = product.options && product.options.length > 0
+  const hasIngredients = product.ingredients && product.ingredients.length > 0
 
   return (
     /* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */
@@ -178,14 +202,70 @@ export default function ProductModal({ product, onClose, onAdd }) {
                 </div>
               </fieldset>
             ))}
+
+          {/* Remove ingredients — checkboxes, all checked by default */}
+          {hasIngredients && (
+            <fieldset className="modal-option-group">
+              <legend className="modal-option-legend">Quita lo que no quieras</legend>
+              <div className="modal-ingredient-list">
+                {product.ingredients.map((ingredient) => {
+                  const inputId = `ing-${product.id}-${ingredient}`
+                  const isKept = !removedIngredients.includes(ingredient)
+                  return (
+                    <label
+                      key={ingredient}
+                      htmlFor={inputId}
+                      className={`ingredient-option${isKept ? '' : ' ingredient-option--removed'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        id={inputId}
+                        checked={isKept}
+                        onChange={() => handleIngredientToggle(ingredient)}
+                      />
+                      <span className="ingredient-check" aria-hidden="true" />
+                      <span className="ingredient-label-text">{ingredient}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </fieldset>
+          )}
+
+          {/* Free-text specification */}
+          <div className="modal-notes">
+            <label className="modal-option-legend" htmlFor={`notes-${product.id}`}>
+              ¿Alguna especificación?
+            </label>
+            <textarea
+              id={`notes-${product.id}`}
+              className="modal-notes-input"
+              rows="3"
+              maxLength="280"
+              placeholder="Ej.: poco hecha, sin cebolla, salsa aparte…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
         </div>
 
-        {/* Sticky footer: price + add button */}
+        {/* Sticky footer: price + (optional) add button */}
         <div className="modal-footer">
           <span className="modal-price">{formatPrice(product.price)}</span>
-          <button className="btn btn-solid modal-add-btn" onClick={handleAdd}>
-            Añadir al pedido
-          </button>
+          {readOnly ? (
+            // Anonymous user on /carta: show login CTA instead of add button
+            <Link
+              className="btn btn-solid modal-add-btn"
+              to="/login"
+              onClick={onClose}
+            >
+              Inicia sesión para pedir
+            </Link>
+          ) : (
+            <button className="btn btn-solid modal-add-btn" onClick={handleAdd}>
+              Añadir al pedido
+            </button>
+          )}
         </div>
       </div>
     </div>

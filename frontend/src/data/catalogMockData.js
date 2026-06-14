@@ -13,7 +13,17 @@
 //     choices: Array<{ id: string, label: string }>
 //   }>
 //
-// The mock options below are representative examples for burgers only.
+// Products may also have an optional `ingredients` field — a flat list of the
+// product's removable ingredients. The modal renders them as checkboxes (all
+// checked by default) so the customer can remove the ones they don't want.
+//   ingredients: string[]
+// TODO (backend-node): GET /api/catalog should include `ingredients` per product
+// when applicable, and POST /api/orders must accept, per order line:
+//   - selectedOptions: { [groupId]: choiceId }
+//   - removedIngredients: string[]
+//   - notes: string   // free-text customer specification
+//
+// The mock options/ingredients below are representative examples for burgers only.
 // All other categories have no options (simple add-to-cart, no customisation).
 
 // Shared option groups reused across all burgers (mock data only)
@@ -131,6 +141,7 @@ export const CATEGORIES = [
         description: 'Carne de ternera, queso cheddar, lechuga, tomate y salsa de la casa.',
         price: 8.50,
         allergens: ['gluten', 'lácteos', 'huevos', 'sésamo'],
+        ingredients: ['Carne de ternera', 'Queso cheddar', 'Lechuga', 'Tomate', 'Salsa de la casa'],
         // TODO: mock options — will come from GET /api/catalog (coordinate with backend-node)
         options: BURGER_OPTIONS,
       },
@@ -140,6 +151,7 @@ export const CATEGORIES = [
         description: 'Carne de ternera, jalapeños, cheddar ahumado, cebolla caramelizada y salsa sriracha.',
         price: 9.00,
         allergens: ['gluten', 'lácteos'],
+        ingredients: ['Carne de ternera', 'Jalapeños', 'Cheddar ahumado', 'Cebolla caramelizada', 'Salsa sriracha'],
         // TODO: mock options — will come from GET /api/catalog (coordinate with backend-node)
         options: BURGER_OPTIONS,
       },
@@ -149,6 +161,7 @@ export const CATEGORIES = [
         description: 'Dos hamburguesas de ternera, doble cheddar, bacon crujiente y todos los acompañamientos.',
         price: 11.50,
         allergens: ['gluten', 'lácteos', 'sésamo'],
+        ingredients: ['Doble carne de ternera', 'Doble cheddar', 'Bacon crujiente', 'Lechuga', 'Tomate', 'Cebolla', 'Salsa de la casa'],
         // TODO: mock options — will come from GET /api/catalog (coordinate with backend-node)
         options: BURGER_OPTIONS,
       },
@@ -158,6 +171,7 @@ export const CATEGORIES = [
         description: 'Carne de ternera, bacon ahumado, salsa BBQ y cebolla frita crujiente.',
         price: 9.50,
         allergens: ['gluten', 'lácteos', 'soja'],
+        ingredients: ['Carne de ternera', 'Bacon ahumado', 'Salsa BBQ', 'Cebolla frita crujiente'],
         // TODO: mock options — will come from GET /api/catalog (coordinate with backend-node)
         options: BURGER_OPTIONS,
       },

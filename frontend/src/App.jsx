@@ -1,7 +1,9 @@
 import { Routes, Route } from 'react-router-dom'
+import ScrollToTop from './components/ScrollToTop.jsx'
 import Header from './components/Header.jsx'
 import Footer from './components/Footer.jsx'
 import Home from './pages/Home.jsx'
+import Carta from './pages/Carta.jsx'
 import HacerPedido from './pages/HacerPedido.jsx'
 import PedidoDatos from './pages/PedidoDatos.jsx'
 import OrderCatalog from './pages/OrderCatalog.jsx'
@@ -26,10 +28,15 @@ import CondicionesVenta from './pages/CondicionesVenta.jsx'
 export default function App() {
   return (
     <>
+      <ScrollToTop />
       <Header />
       <main>
         <Routes>
           <Route path="/" element={<Home />} />
+
+          {/* Read-only catalog — accessible to everyone; interactive only when logged in */}
+          <Route path="/carta" element={<Carta />} />
+
           <Route path="/hacer-pedido" element={<HacerPedido />} />
 
           {/* Step 2: product catalog + cart */}

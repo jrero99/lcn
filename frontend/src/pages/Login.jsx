@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.jsx'
 
 // Login page — /login
 // Auth is mock only. Integration point: TODO POST /api/auth/login
 export default function Login() {
   const navigate = useNavigate()
+  const { login } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -31,9 +33,15 @@ export default function Login() {
 
     // TODO: replace mock with POST /api/auth/login
     // Body: { email, password }
-    // On success: store JWT in httpOnly cookie or sessionStorage (coordinate with security-expert)
-    // NEVER log password or personal data
+    // On success: the real token (JWT) should be stored in an httpOnly cookie
+    // (coordinate with security-expert). Only non-sensitive user data (email,
+    // display name) should be passed to login() below.
+    // NEVER log password or personal data.
     console.info('[Login] Mock submit — email:', email)
+
+    // Mark the user as authenticated in the UI context (mock only — see AuthContext.jsx).
+    // Replace with real user data from the API response when the backend exists.
+    login({ email })
 
     navigate('/')
   }
