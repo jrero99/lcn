@@ -109,7 +109,9 @@ lcn/
 
 - **Seguridad primero**: nunca loguear secretos ni datos personales; validar y
   sanear toda entrada; las contraseñas siempre hasheadas; usar variables de
-  entorno para secretos (`.env`, nunca commiteado).
+  entorno para secretos (`.env`, nunca commiteado). El backend tiene requisitos
+  anti-fraude detallados y NO negociables en `.claude/agents/backend-node.md`
+  (recálculo de total, rate limiting, OTP, estado del pedido, blacklist, RGPD).
 - **Alérgenos**: la carta debe poder reflejar alérgenos (requisito legal en hostelería UE).
 - **RGPD**: datos personales mínimos, consentimiento y posibilidad de borrado.
 - **Accesibilidad** y **responsive**: la mayoría de clientes entran desde móvil.

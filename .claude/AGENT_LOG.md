@@ -60,6 +60,120 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 
 ## Bitácora
 
+### [2026-06-14] knowledge-coordinator — Plan anti-fraude incorporado a instrucciones de backend-node
+
+- **Qué cambió**: El plan de seguridad anti-fraude/anti-abuso entregado por `security-expert` (entrada de 2026-06-14 más abajo) se ha consolidado como sección permanente "Requisitos de seguridad anti-fraude (NO negociables)" en `.claude/agents/backend-node.md`. El agente `backend-node` lo leerá automáticamente en cada sesión.
+- **Por qué**: Petición explícita del usuario para que quede anotado de forma duradera antes de que se andamie el backend.
+- **Impacto para otros agentes**: `frontend-react` debe retirar el campo `total` del body de `POST /api/orders` cuando se integre con la API real (solo enviar `{ productId, quantity }` por item). Pendiente de decisión del usuario: ¿el flujo de `PedidoDatos` incluirá el paso OTP antes de confirmar el pedido a domicilio?
+- **Acción requerida**: Ninguna nueva. `backend-node` aplica estos requisitos cuando se andamie el backend.
+
+### [2026-06-14] frontend-react — AuthContext mock + página /carta (solo lectura) + re-enrutado enlaces "La Carta"
+
+- **Qué cambió**:
+
+  **1. AuthContext mock (`frontend/src/context/AuthContext.jsx`, nuevo)**
+  - Nuevo `AuthProvider` + hook `useAuth()`. Expone: `isAuthenticated` (bool), `user` (obj|null), `login(userData)`, `logout()`.
+  - Persiste en `sessionStorage` (clave `lcn_auth`); inicializa leyendo de sessionStorage al montar.
+  - Almacena solo datos no sensibles (email, nombre). NUNCA contraseñas ni JWTs.
+  - Comentado extensamente como MOCK de UI; la auth real es responsabilidad del backend/security-expert.
+  - `AuthProvider` montado en `main.jsx` dentro de `<BrowserRouter>`.
+
+  **2. Login y Registro conectados al AuthContext**
+  - `Login.jsx`: tras validación mock OK, llama a `login({ email })` antes de `navigate('/')`.
+  - `Registro.jsx`: tras validación mock OK, llama a `login({ email, name: nombre })` antes de abrir el modal de bienvenida.
+  - Validación existente y "NEVER log password" permanecen intactos.
+
+  **3. Nueva página `/carta` (`frontend/src/pages/Carta.jsx`)**
+  - Ruta `/carta` añadida en `App.jsx`.
+  - Reutiliza `fetchCatalog()`, `CategoryNav`, `ProductCard`, `ProductModal`, `CheckoutBar`. Cero duplicación de lógica de carga.
+  - `OrderCatalog` y el flujo `/hacer-pedido/...` no han sido modificados.
+  - Estrategia: Carta reimplementa la vista con los mismos sub-componentes (no reutiliza `OrderCatalog` porque está acoplado al flujo de pedido).
+  - Gating: ANÓNIMO = `ReadOnlyProductCard` (sin "+"), `ProductModal` con CTA login, banner fijo inferior. LOGUEADO = `ProductCard` interactivo, `CheckoutBar`, checkout a `/hacer-pedido/confirmar` con `mode: 'domicilio'` por defecto.
+  - `ProductModal.jsx`: nuevo prop `readOnly` (bool, default `false`). Cuando `true`, el footer muestra `<Link to="/login">` en vez de "Añadir al pedido". Añadido `import { Link }` de react-router-dom.
+  - CSS: clases `.carta-login-banner`, `.carta-login-banner-text`, `.carta-login-banner-btn` en `index.css`. Responsive: apilado vertical en ≤520px.
+
+  **4. Re-enrutado de los tres puntos de entrada "La Carta"**
+  - `Header.jsx`: `{ href: '/#carta' }` → `{ to: '/carta' }` (renderizado como `<Link>`).
+  - `Home.jsx`: botón "Descubre nuestra carta completa" → `<Link to="/carta">` (antes `/hacer-pedido`).
+  - `Footer.jsx`: `{ type: 'anchor', href: '/#carta' }` → `{ type: 'link', to: '/carta' }`.
+
+- **Por qué**: Petición explícita del usuario.
+
+- **TODOs / preguntas abiertas**:
+  - ¿Debería todo el flujo de pedido (`/hacer-pedido/...`) requerir login? Solo `/carta` aplica gating ahora. Si se decide que sí, añadir un `ProtectedRoute` genérico. NO implementado ahora.
+  - Mode selection en `/carta` logueado: checkout va con `mode: 'domicilio'` hardcodeado. Mejora futura marcada con TODO en `Carta.jsx`.
+  - JWT real: cuando el backend implemente `POST /api/auth/login`, reemplazar `login({ email })` por llamada fetch real. JWT en httpOnly cookie (coordinar con security-expert).
+
+- **Impacto para otros agentes**:
+  - `backend-node`: puntos de integración en `Login.jsx` y `Registro.jsx` marcados con TODO.
+  - `security-expert`: `sessionStorage` es temporal (XSS-vulnerable). Solución de producción: httpOnly cookie para JWT.
+  - `testing-expert`: flujos: (1) `/carta` anónimo → banner visible, sin "+"; (2) `/carta` logueado → interactivo; (3) `ProductModal` anónimo → link login; (4) login mock → `isAuthenticated` true; (5) recarga → sessionStorage restaura estado; (6-8) los tres enlaces "La Carta" navegan a `/carta`.
+  - `qa-expert`: verificar en 360px que el banner no oculta el último producto, CTA ≥44px.
+
+- **Acción requerida**:
+  - `backend-node` + `security-expert`: integrar auth real cuando exista el backend.
+  - `testing-expert`: cubrir los flujos nuevos.
+  - Decisión pendiente del usuario: ¿requiere login todo el flujo de pedido?
+
+### [2026-06-14] security-expert — Plan anti-fraude/anti-abuso para pedidos con pago contra reembolso
+
+- **Que cambio**: Entregado plan de seguridad por capas (no codigo) para proteger los endpoints de pedidos, reservas y auth frente a bots, pedidos falsos y abuso, adaptado al modelo de pago contra reembolso.
+- **Por que**: Sin pasarela de pago online, el unico filtro anti-fraude son controles de servidor. Riesgo critico identificado antes de abrir el backend al publico.
+- **Impacto para otros agentes**:
+  - backend-node: POST /api/orders, POST /api/auth/register, POST /api/auth/login y POST /api/reservations DEBEN incorporar antes de despliegue: recalculo de total en servidor, rate limiting por IP+telefono, verificacion OTP en primer pedido a domicilio, idempotency key, lista negra, estado de pedido con confirmacion manual para clientes nuevos.
+  - frontend-react: el body de POST /api/orders NO debe incluir el campo total calculado en cliente; solo ids y cantidades. El total autoritativo lo devuelve el servidor. Si el telefono no esta verificado, el flujo de PedidoDatos debe incluir el paso OTP.
+- **Accion requerida**:
+  - backend-node: Prioridad 1: recalculo total + rate limiting. Prioridad 2: verificacion OTP telefono. Prioridad 3: idempotency key + lista negra. Prioridad 4: geocoding direccion.
+  - frontend-react: retirar campo total del body enviado a POST /api/orders.
+
+
+### [2026-06-14] frontend-react — Capa de servicios: catalogService + consumo async en OrderCatalog
+
+- **Qué cambió**:
+  - Nueva carpeta `frontend/src/services/` y nuevo archivo `frontend/src/services/catalogService.js`.
+    Exporta una función `async fetchCatalog()` que hoy resuelve el mock (`CATEGORIES`) como `Promise.resolve()`.
+    Incluye el bloque TODO comentado con el fetch real (`fetch(\`${API_BASE_URL}/api/catalog\`)`),
+    manejo de `res.ok` y lanzamiento de error. Define `API_BASE_URL` leída de
+    `import.meta.env.VITE_API_URL` (Vite env var) con fallback a `''` (mismo origen).
+    **Cuando exista el backend, solo hay que tocar este archivo.**
+  - `frontend/src/pages/OrderCatalog.jsx` — refactorizado para consumo asíncrono:
+    - Ya no importa `CATEGORIES` de `catalogMockData.js`.
+    - Nuevos estados: `categories` (inicial `[]`), `loading` (inicial `true`), `error` (`null`).
+    - `activeCategory` inicializado a `null`; se fija al primer elemento cuando llegan los datos.
+    - `useEffect` al montar llama a `fetchCatalog()` con flag `cancelled` (protege setState tras desmontaje).
+    - Renderiza estado de carga, error (con botón "Reintentar" que re-llama a `fetchCatalog()`)
+      y vacío de forma sencilla (clases `.catalog-status-wrap`, `.catalog-status-msg`, etc.).
+    - En el render principal, `CategoryNav` y las secciones consumen `categories` (array cargado),
+      nunca el módulo de datos directamente.
+    - Toda la lógica de carrito, modal, scroll a sección y checkout permanece intacta.
+  - `frontend/src/index.css` — nuevas clases para los estados de carga/error/vacío del catálogo:
+    `.catalog-status-wrap`, `.catalog-status-msg`, `.catalog-status-msg--error`,
+    `.catalog-status-hint`, `.catalog-retry-btn`. Usan `var(--brand)`, `var(--muted)` — sin colores hardcodeados.
+  - Build verificado: `npm run build` → 0 errores, 0 warnings.
+
+- **Por qué**: Preparar el catálogo para cargarse dinámicamente desde la API cuando exista el backend,
+  sin romper nada hoy. El punto de cambio queda reducido a un único archivo.
+
+- **Impacto para otros agentes**:
+  - `backend-node`: cuando implemente `GET /api/catalog`, el único archivo a actualizar en el front es
+    `frontend/src/services/catalogService.js`. El bloque de fetch real ya está escrito y comentado,
+    esperando ser descomentado. La respuesta debe ser un array de categorías con la forma documentada
+    en `catalogMockData.js` (campos `id`, `label`, `heading`, `products[]`; cada producto con
+    `id`, `name`, `description`, `price`, `allergens[]`, y `options[]` opcional).
+    Poner `VITE_API_URL=http://localhost:3001` en `frontend/.env.local` para desarrollo local.
+  - `testing-expert`: nuevos flujos a cubrir en `OrderCatalog`:
+    (1) Estado loading → spinner/mensaje visible; (2) Error de red → mensaje de error + botón Reintentar;
+    (3) Reintentar → vuelve a llamar a `fetchCatalog`; (4) Carga exitosa → categorías visibles;
+    (5) Catálogo vacío → mensaje "La carta no está disponible".
+    Para tests, hacer mock de `catalogService.fetchCatalog` (no del módulo mock de datos).
+  - `qa-expert`: verificar en 360px que los estados de carga/error no producen overflow horizontal.
+    Verificar que el botón "Reintentar" tiene target táctil ≥44px.
+
+- **Acción requerida**:
+  - `backend-node`: implementar `GET /api/catalog` con la forma documentada en `catalogMockData.js`.
+    Cuando esté listo, descomentar el bloque `fetch` en `catalogService.js` y borrar el mock.
+  - `testing-expert`: mockear `fetchCatalog` en tests de `OrderCatalog` para los nuevos estados async.
+
 ### [2026-06-10] frontend-react — Páginas Login y Registro + modal de bienvenida
 
 - **Qué cambió**:
