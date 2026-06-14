@@ -1,87 +1,89 @@
-// AuthContext — mock UI authentication state.
+// AuthContext — authentication state backed by the real backend API.
 //
-// IMPORTANT SECURITY NOTE:
-// ========================
-// This is a CLIENT-SIDE MOCK for UI gating only.
-// It does NOT provide real security. Specifically:
-//   - No JWT is validated here.
-//   - The `isAuthenticated` flag can be set by any client-side code.
-//   - Any "permission" enforced here can be bypassed by the user in DevTools.
+// SECURITY MODEL (read before touching this file):
+// ================================================
+// 1. The JWT lives ONLY in an httpOnly cookie (set by the server).
+//    JavaScript has zero access to it — no XSS can steal it.
+// 2. This context stores ONLY non-sensitive info: { id, email, firstName,
+//    lastName, role }. NEVER passwords, raw tokens, or PII beyond what is
+//    listed here.
+// 3. `sessionStorage` is NO LONGER USED. State is derived from `GET
+//    /api/auth/me` on mount, which validates the cookie server-side.
+// 4. UI gating (isAuthenticated, role checks) is UX only. Real enforcement
+//    happens server-side on every API request (`requireAuth` / `requireAdmin`).
 //
-// The real authentication flow (POST /api/auth/login, JWT verification,
-// session management) MUST be implemented on the backend and validated
-// server-side on every API request. UI gating is UX, not security.
+// Flow on page load:
+//   mount → GET /api/auth/me (cookie sent automatically) →
+//     200: hydrate user state
+//     401: user is not authenticated
 //
-// TODO (backend-node + security-expert):
-//   - Implement POST /api/auth/login → returns a JWT.
-//   - Store the JWT in an httpOnly cookie (preferred over sessionStorage to
-//     prevent XSS token theft — coordinate with security-expert).
-//   - Replace `login()` here with a real fetch call; on success, update
-//     `isAuthenticated` and store only non-sensitive user info (name, email).
-//   - Implement token refresh and logout (invalidate server-side session).
+// login() — called after POST /api/auth/login succeeds.
+//   The cookie is already set by the server response; we just fetch /me to
+//   get the user object and update React state.
+//
+// logout() — calls POST /api/auth/logout to clear the server-side cookie,
+//   then clears React state.
 
-import { createContext, useContext, useState, useCallback } from 'react'
-
-const STORAGE_KEY = 'lcn_auth'
-
-// Read persisted auth state from sessionStorage on initial load.
-// sessionStorage is cleared when the browser tab is closed.
-// We store ONLY non-sensitive data: email and display name.
-// NEVER store passwords, raw JWTs, or sensitive personal data here.
-function readPersistedAuth() {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
-    if (!raw) return { isAuthenticated: false, user: null }
-    const parsed = JSON.parse(raw)
-    // Basic sanity check: must be a recognised shape
-    if (parsed && typeof parsed.isAuthenticated === 'boolean') {
-      return parsed
-    }
-  } catch {
-    // Ignore parse errors (corrupted storage) — start unauthenticated
-  }
-  return { isAuthenticated: false, user: null }
-}
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { getMeRequest, logoutRequest } from '../services/authService.js'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [authState, setAuthState] = useState(readPersistedAuth)
+  // user: { id, email, firstName, lastName, role } | null
+  const [user, setUser] = useState(null)
+  // loading: true while GET /api/auth/me is in-flight on mount.
+  // ProtectedRoute waits for this to resolve before redirecting.
+  const [loading, setLoading] = useState(true)
 
-  // login — called after a successful mock (or future real) auth flow.
-  // `userData` should contain ONLY non-sensitive info: { email, name? }.
-  // NEVER pass passwords or raw tokens here.
-  const login = useCallback((userData) => {
-    const next = { isAuthenticated: true, user: userData }
-    setAuthState(next)
-    try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-    } catch {
-      // sessionStorage unavailable (private mode, quota, etc.) — state still
-      // lives in memory for the current React tree; will reset on reload.
-    }
+  // On mount, resolve the current session from the server.
+  useEffect(() => {
+    let cancelled = false
+
+    getMeRequest()
+      .then((data) => {
+        if (cancelled) return
+        // data is { user: {...} } or null (401 → not authenticated)
+        setUser(data?.user ?? null)
+      })
+      .catch(() => {
+        // Network error or unexpected server error — treat as unauthenticated.
+        // The user will need to log in.
+        if (!cancelled) setUser(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => { cancelled = true }
   }, [])
 
-  // logout — clears state and storage.
-  const logout = useCallback(() => {
-    const next = { isAuthenticated: false, user: null }
-    setAuthState(next)
-    try {
-      sessionStorage.removeItem(STORAGE_KEY)
-    } catch {
-      // ignore
-    }
+  // login — call after a successful POST /api/auth/login.
+  // The httpOnly cookie is already set by the server at this point.
+  // We re-fetch /me so we always hydrate from a single source of truth.
+  const login = useCallback(async () => {
+    const data = await getMeRequest()
+    // NEVER store passwords or raw tokens here.
+    setUser(data?.user ?? null)
   }, [])
+
+  // logout — clear the server-side cookie, then clear local state.
+  const logout = useCallback(async () => {
+    await logoutRequest()
+    setUser(null)
+  }, [])
+
+  const isAuthenticated = Boolean(user)
 
   return (
-    <AuthContext.Provider value={{ ...authState, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
 // useAuth — consume the auth context in any component.
-// Returns: { isAuthenticated: bool, user: object|null, login, logout }
+// Returns: { isAuthenticated: bool, user: object|null, loading: bool, login, logout }
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) {

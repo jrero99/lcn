@@ -16,6 +16,8 @@ import AvisoLegal from './pages/AvisoLegal.jsx'
 import PoliticaPrivacidad from './pages/PoliticaPrivacidad.jsx'
 import PoliticaCookies from './pages/PoliticaCookies.jsx'
 import CondicionesVenta from './pages/CondicionesVenta.jsx'
+import AdminOffice from './pages/AdminOffice.jsx'
+import ProtectedRoute from './components/ProtectedRoute.jsx'
 
 // Flujo de pedido (los datos se piden ANTES del catálogo, porque la barra de
 // checkout muestra la dirección durante la navegación):
@@ -25,48 +27,70 @@ import CondicionesVenta from './pages/CondicionesVenta.jsx'
 //   /hacer-pedido/domicilio    — catálogo, modo domicilio (OrderCatalog)
 //   /hacer-pedido/confirmar    — confirmación, pago contra reembolso (OrderConfirmation)
 
+// PublicLayout — wraps public pages with the shared Header + Footer.
+function PublicLayout({ children }) {
+  return (
+    <>
+      <Header />
+      <main>{children}</main>
+      <Footer />
+    </>
+  )
+}
+
 export default function App() {
   return (
     <>
       <ScrollToTop />
-      <Header />
-      <main>
-        <Routes>
-          <Route path="/" element={<Home />} />
+      <Routes>
+        {/* ── Admin backoffice ────────────────────────────────────────────────── */}
+        {/* Full-page layout (no public Header/Footer). NOT linked from any      */}
+        {/* public page — the admin reaches it by typing the URL directly.       */}
+        {/* Real access control is enforced server-side by `requireAdmin`.       */}
+        <Route
+          path="/adminoffice"
+          element={
+            <ProtectedRoute requireAdmin>
+              <AdminOffice />
+            </ProtectedRoute>
+          }
+        />
 
-          {/* Read-only catalog — accessible to everyone; interactive only when logged in */}
-          <Route path="/carta" element={<Carta />} />
+        {/* ── Public routes (wrapped in shared Header + Footer) ──────────────── */}
 
-          <Route path="/hacer-pedido" element={<HacerPedido />} />
+        <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
 
-          {/* Step 2: product catalog + cart */}
-          <Route path="/hacer-pedido/recoger" element={<OrderCatalog mode="recoger" />} />
-          <Route path="/hacer-pedido/domicilio" element={<OrderCatalog mode="domicilio" />} />
+        {/* Read-only catalog — accessible to everyone; interactive only when logged in */}
+        <Route path="/carta" element={<PublicLayout><Carta /></PublicLayout>} />
 
-          {/* Step 1.5: address/timing/age form (mode via ?mode=) */}
-          <Route path="/hacer-pedido/datos" element={<PedidoDatos />} />
+        <Route path="/hacer-pedido" element={<PublicLayout><HacerPedido /></PublicLayout>} />
 
-          {/* Step 3: confirmation (pago contra reembolso) */}
-          <Route path="/hacer-pedido/confirmar" element={<OrderConfirmation />} />
+        {/* Step 2: product catalog + cart */}
+        <Route path="/hacer-pedido/recoger" element={<PublicLayout><OrderCatalog mode="recoger" /></PublicLayout>} />
+        <Route path="/hacer-pedido/domicilio" element={<PublicLayout><OrderCatalog mode="domicilio" /></PublicLayout>} />
 
-          {/* Reservations — step 1: date/time/zone/guests form */}
-          <Route path="/reservar" element={<Reservas />} />
+        {/* Step 1.5: address/timing/age form (mode via ?mode=) */}
+        <Route path="/hacer-pedido/datos" element={<PublicLayout><PedidoDatos /></PublicLayout>} />
 
-          {/* Jobs application form (mock — no backend yet) */}
-          <Route path="/trabaja" element={<Trabaja />} />
+        {/* Step 3: confirmation (pago contra reembolso) */}
+        <Route path="/hacer-pedido/confirmar" element={<PublicLayout><OrderConfirmation /></PublicLayout>} />
 
-          {/* Auth pages — mock only, TODO: integrate POST /api/auth/login and /register */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/registro" element={<Registro />} />
+        {/* Reservations — step 1: date/time/zone/guests form */}
+        <Route path="/reservar" element={<PublicLayout><Reservas /></PublicLayout>} />
 
-          {/* Páginas legales (texto informativo) */}
-          <Route path="/aviso-legal" element={<AvisoLegal />} />
-          <Route path="/politica-privacidad" element={<PoliticaPrivacidad />} />
-          <Route path="/politica-cookies" element={<PoliticaCookies />} />
-          <Route path="/condiciones-venta" element={<CondicionesVenta />} />
-        </Routes>
-      </main>
-      <Footer />
+        {/* Jobs application form */}
+        <Route path="/trabaja" element={<PublicLayout><Trabaja /></PublicLayout>} />
+
+        {/* Auth pages */}
+        <Route path="/login" element={<PublicLayout><Login /></PublicLayout>} />
+        <Route path="/registro" element={<PublicLayout><Registro /></PublicLayout>} />
+
+        {/* Páginas legales (texto informativo) */}
+        <Route path="/aviso-legal" element={<PublicLayout><AvisoLegal /></PublicLayout>} />
+        <Route path="/politica-privacidad" element={<PublicLayout><PoliticaPrivacidad /></PublicLayout>} />
+        <Route path="/politica-cookies" element={<PublicLayout><PoliticaCookies /></PublicLayout>} />
+        <Route path="/condiciones-venta" element={<PublicLayout><CondicionesVenta /></PublicLayout>} />
+      </Routes>
     </>
   )
 }

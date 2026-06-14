@@ -1,16 +1,29 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
+import { loginRequest } from '../services/authService.js'
 
 // Login page — /login
-// Auth is mock only. Integration point: TODO POST /api/auth/login
+//
+// SECURITY:
+//   - Passwords are NOT logged, stored, or passed to any state.
+//   - The JWT is set by the server in an httpOnly cookie; JS never sees it.
+//   - After a successful login we call login() (from AuthContext), which
+//     re-fetches GET /api/auth/me to hydrate the user object.
+//   - Validation here is UX only; the server re-validates everything.
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  // Redirect destination: honour ?next= or the state set by ProtectedRoute.
+  const from = location.state?.from ?? '/'
 
   function validate() {
     const next = {}
@@ -25,25 +38,32 @@ export default function Login() {
     return next
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
+    setServerError('')
+
     const errs = validate()
     setErrors(errs)
     if (Object.keys(errs).length > 0) return
 
-    // TODO: replace mock with POST /api/auth/login
-    // Body: { email, password }
-    // On success: the real token (JWT) should be stored in an httpOnly cookie
-    // (coordinate with security-expert). Only non-sensitive user data (email,
-    // display name) should be passed to login() below.
-    // NEVER log password or personal data.
-    console.info('[Login] Mock submit — email:', email)
+    setSubmitting(true)
+    try {
+      // POST /api/auth/login — sets httpOnly cookie on success.
+      // NEVER pass the password anywhere after this call.
+      await loginRequest({ email, password })
 
-    // Mark the user as authenticated in the UI context (mock only — see AuthContext.jsx).
-    // Replace with real user data from the API response when the backend exists.
-    login({ email })
+      // Hydrate user state from GET /api/auth/me (single source of truth).
+      await login()
 
-    navigate('/')
+      // Navigate to the protected page the user came from, or home.
+      navigate(from, { replace: true })
+    } catch (err) {
+      // Show the server error message (e.g. "Credenciales incorrectas").
+      // NEVER log email/password to the console.
+      setServerError(err.message || 'Error al iniciar sesión. Inténtalo de nuevo.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   function clearError(field) {
@@ -62,6 +82,13 @@ export default function Login() {
         <h1 className="datos-title">Identifícate</h1>
         <p className="datos-sub">Introduce tu correo electrónico</p>
 
+        {/* Server-level error (e.g. wrong credentials) */}
+        {serverError && (
+          <p className="field-error" role="alert" style={{ marginBottom: '1rem' }}>
+            {serverError}
+          </p>
+        )}
+
         <form className="datos-form auth-form" onSubmit={handleSubmit} noValidate>
           {/* Email field */}
           <div>
@@ -78,6 +105,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); clearError('email') }}
                 aria-describedby={errors.email ? 'login-email-error' : undefined}
+                disabled={submitting}
               />
             </div>
             {errors.email && (
@@ -102,6 +130,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); clearError('password') }}
                 aria-describedby={errors.password ? 'login-password-error' : undefined}
+                disabled={submitting}
               />
             </div>
             {errors.password && (
@@ -111,7 +140,9 @@ export default function Login() {
             )}
           </div>
 
-          <button type="submit" className="btn-continue">Siguiente</button>
+          <button type="submit" className="btn-continue" disabled={submitting}>
+            {submitting ? 'Entrando…' : 'Siguiente'}
+          </button>
         </form>
 
         {/* Divider + register CTA */}
