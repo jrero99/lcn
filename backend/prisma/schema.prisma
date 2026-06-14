@@ -1,0 +1,468 @@
+// =============================================================================
+// La Casa Nostra (LCN) — Prisma Schema
+// Base de datos: PostgreSQL
+// Generado por: backend-node — 2026-06-14
+// Estado: APROBADO por el usuario el 2026-06-14
+//
+// NOTAS PREVIAS A LA PRIMERA MIGRACION:
+//   1. Crear la BD:   createdb lcn   (o via psql)
+//   2. Habilitar extensiones antes de ejecutar `prisma migrate dev`:
+//        CREATE EXTENSION IF NOT EXISTS "pgcrypto";   -- gen_random_uuid()
+//        CREATE EXTENSION IF NOT EXISTS "citext";     -- email case-insensitive
+//   3. Copiar .env.example a .env y rellenar DATABASE_URL con credenciales reales.
+//   4. Ejecutar:  npx prisma migrate dev --name init
+//
+// DEUDA FUTURA ANOTADA:
+//   - Tabla PhoneOtp para verificacion OTP por SMS (Twilio/AWS SNS).
+//     El campo phone_verified en User ya esta preparado para recibirlo.
+//     No incluida en MVP por decision del usuario (sin proveedor SMS aun).
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto, citext]
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+/// Ciclo de vida del pedido.
+/// Todos los pedidos nacen en PENDING. Solo el admin los mueve manualmente.
+/// READY aplica a pedidos PICKUP; OUT_FOR_DELIVERY aplica a DELIVERY.
+/// Ciclo:
+///   PENDING -> CONFIRMED -> PREPARING -> READY (PICKUP)
+///   PENDING -> CONFIRMED -> PREPARING -> OUT_FOR_DELIVERY -> DELIVERED
+///   PENDING -> CANCELLED (en cualquier punto antes de DELIVERED)
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderMode {
+  PICKUP
+  DELIVERY
+}
+
+enum OrderTiming {
+  ASAP
+  SCHEDULED
+}
+
+/// Pago al recibir el pedido. Sin cobro online.
+enum PaymentMethod {
+  CARD
+  CASH
+}
+
+enum BlacklistType {
+  phone
+  address
+  email
+  ip
+}
+
+// =============================================================================
+// USUARIOS Y SESIONES
+// =============================================================================
+
+model User {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  /// citext: comparacion case-insensitive sin LOWER().
+  /// Requiere: CREATE EXTENSION IF NOT EXISTS citext;
+  email        String   @unique @db.Citext
+  /// bcrypt cost>=12 o argon2id. NUNCA en texto plano ni en logs.
+  passwordHash String   @map("password_hash")
+  firstName    String   @map("first_name")
+  lastName     String   @map("last_name")
+  /// Normalizado a E.164 con libphonenumber-js. Solo telefonos validos en Espanya.
+  phone        String?
+  /// true tras completar el flujo OTP.
+  /// Campo preparado para uso futuro — OTP SMS pendiente de proveedor.
+  phoneVerified Boolean @default(false) @map("phone_verified")
+
+  role Role @default(CUSTOMER)
+
+  /// Consentimiento de condiciones de venta. Obligatorio al registrarse.
+  acceptedTerms Boolean @map("accepted_terms")
+  /// Consentimiento de politica de datos. Obligatorio (RGPD).
+  acceptedPrivacy Boolean @map("accepted_privacy")
+  /// Comunicaciones comerciales. Opcional.
+  acceptedMarketing Boolean @default(false) @map("accepted_marketing")
+  /// Declaracion de ser mayor de 18 anyos.
+  ageConfirmed Boolean @default(false) @map("age_confirmed")
+
+  /// Soft delete RGPD. Cuando no es null, la cuenta esta anonimizada.
+  /// El proceso de borrado sobreescribe email, first_name, last_name y phone
+  /// con valores anonimizados antes de poner este campo.
+  deletedAt DateTime? @map("deleted_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  refreshTokens      RefreshToken[]
+  orders             Order[]
+  orderStatusChanges OrderStatusHistory[] @relation("ChangedByUser")
+
+  @@index([phone])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+/// Refresh tokens de larga duracion para sesiones persistentes.
+/// El access token (JWT) sigue siendo de corta duracion (stateless).
+/// Permite revocar sesiones individuales o todas ("cerrar todas las sesiones").
+model RefreshToken {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  /// SHA-256 del refresh token. NUNCA el token en claro en BD ni en logs.
+  tokenHash String @map("token_hash")
+
+  expiresAt DateTime  @map("expires_at")
+  /// null = sesion activa. Con fecha = sesion revocada (logout o "cerrar todas").
+  revokedAt DateTime? @map("revoked_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  /// User-Agent del navegador/app al crear el token. Para mostrar sesiones activas al usuario.
+  userAgent String?  @map("user_agent")
+  /// IP de origen al crear el token. Solo para auditoria; no loguear en ficheros de log.
+  ip        String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// =============================================================================
+// CATALOGO
+// =============================================================================
+
+model Category {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  /// URL-friendly: 'classics', 'burgers', 'drinks'.
+  /// Equivale al campo 'id' del mock actual en catalogMockData.js.
+  slug    String @unique
+  /// Nombre corto para la tab de navegacion: "Clasicos", "Tapas", "Hamburguesas".
+  label   String
+  /// Heading grande de la seccion visible en la carta.
+  heading String
+
+  sortOrder Int @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId String @map("category_id") @db.Uuid
+
+  name        String
+  description String?
+
+  /// Precio base del producto. El precio final de una linea puede ser mayor
+  /// si alguna OptionChoice tiene price_delta > 0.
+  /// El total del pedido se recalcula SIEMPRE en el servidor.
+  price Decimal @db.Decimal(10, 2)
+
+  /// false = el producto no se devuelve en GET /api/catalog (desactivado temporalmente).
+  available Boolean @default(true)
+  sortOrder Int     @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  category         Category          @relation(fields: [categoryId], references: [id])
+  productAllergens ProductAllergen[]
+  optionGroups     OptionGroup[]
+  ingredients      Ingredient[]
+  /// Referencia blanda: orderLines puede tener product_id null si el producto fue eliminado.
+  orderLines       OrderLine[]
+
+  @@index([categoryId])
+  @@index([available, sortOrder])
+  @@map("products")
+}
+
+model Allergen {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  /// Nombre normalizado: 'gluten', 'lacteos', 'huevos', 'sesamo', 'mostaza',
+  /// 'pescado', 'soja', 'frutos secos'. 14 alergenos de declaracion obligatoria UE.
+  name String @unique
+  /// Emoji o nombre de icono para la interfaz.
+  icon String?
+
+  productAllergens ProductAllergen[]
+
+  @@map("allergens")
+}
+
+/// Tabla de union N:M entre Product y Allergen.
+model ProductAllergen {
+  productId  String @map("product_id") @db.Uuid
+  allergenId String @map("allergen_id") @db.Uuid
+
+  product  Product  @relation(fields: [productId], references: [id])
+  allergen Allergen @relation(fields: [allergenId], references: [id])
+
+  @@id([productId, allergenId])
+  @@map("product_allergens")
+}
+
+model OptionGroup {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId String @map("product_id") @db.Uuid
+
+  /// Heading del grupo visible al cliente: "Elige tu acompanyante", "Elige tu salsa".
+  label String
+  /// 'single' (radio) es el unico tipo soportado ahora. Extensible a 'multi' en el futuro.
+  type      String @default("single")
+  sortOrder Int    @default(0) @map("sort_order")
+
+  product       Product        @relation(fields: [productId], references: [id])
+  optionChoices OptionChoice[]
+
+  @@index([productId])
+  @@map("option_groups")
+}
+
+model OptionChoice {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  optionGroupId String @map("option_group_id") @db.Uuid
+
+  /// Texto de la opcion: "Bravas", "Fritas", "Sin salsa", "BBQ".
+  label String
+  /// Suplemento de precio. 0.00 en la mayoria de casos.
+  /// Positivo si la opcion tiene coste extra (pan premium, tamanyo mayor).
+  priceDelta Decimal @default(0.00) @map("price_delta") @db.Decimal(10, 2)
+  sortOrder  Int     @default(0) @map("sort_order")
+  /// false = la opcion no se muestra (agotado temporalmente).
+  available  Boolean @default(true)
+
+  optionGroup OptionGroup @relation(fields: [optionGroupId], references: [id])
+
+  @@index([optionGroupId])
+  @@map("option_choices")
+}
+
+/// Ingredientes removibles de un producto.
+/// El cliente puede pedir eliminarlos al hacer el pedido.
+model Ingredient {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId String @map("product_id") @db.Uuid
+
+  name      String
+  sortOrder Int    @default(0) @map("sort_order")
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@map("ingredients")
+}
+
+// =============================================================================
+// PEDIDOS
+// =============================================================================
+
+model Order {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  /// Todos los pedidos nacen en PENDING. El admin los confirma o cancela manualmente.
+  /// No hay confirmacion automatica. Ver ciclo de vida en el enum OrderStatus.
+  status OrderStatus @default(PENDING)
+
+  mode OrderMode
+
+  /// Solo si mode=DELIVERY. Debe incluir "Mataro" o CP 08301-08304 (validacion en servidor).
+  deliveryAddress String? @map("delivery_address")
+
+  timing OrderTiming
+
+  /// Solo si timing=SCHEDULED. Null si timing=ASAP.
+  scheduledFor DateTime? @map("scheduled_for")
+
+  /// CARD o CASH. Pago al recibir por el repartidor. Sin cobro online.
+  paymentMethod PaymentMethod @map("payment_method")
+
+  /// Total autoritativo del pedido, calculado siempre en el servidor.
+  /// NUNCA se acepta el total enviado por el cliente.
+  total Decimal @db.Decimal(10, 2)
+
+  /// Telefono de contacto para el pedido (E.164).
+  /// Puede diferir del telefono del perfil del usuario.
+  contactPhone String @map("contact_phone")
+
+  /// El cliente declara ser mayor de 18 anyos en el formulario del pedido.
+  ageConfirmed Boolean @default(false) @map("age_confirmed")
+
+  /// UUID v4 enviado por el cliente en el body de POST /api/orders.
+  /// Si ya existe un pedido con este key en las ultimas 24h,
+  /// el servidor devuelve el pedido existente sin duplicar.
+  idempotencyKey String @unique @map("idempotency_key")
+
+  /// Nota general del pedido (instrucciones de acceso, etc).
+  notes String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user          User                 @relation(fields: [userId], references: [id])
+  orderLines    OrderLine[]
+  statusHistory OrderStatusHistory[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([contactPhone, createdAt])
+  @@index([deliveryAddress, createdAt])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderLine {
+  id      String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId String  @map("order_id") @db.Uuid
+  /// Referencia blanda: null si el producto fue eliminado del catalogo.
+  /// El historico sigue siendo legible via los campos snapshot.
+  productId String? @map("product_id") @db.Uuid
+
+  /// Nombre del producto en el momento de la compra. Inmutable tras la creacion.
+  productNameSnapshot String @map("product_name_snapshot")
+
+  /// Precio unitario en el momento de la compra
+  /// (precio base + price_delta de la opcion elegida). Inmutable.
+  unitPriceSnapshot Decimal @map("unit_price_snapshot") @db.Decimal(10, 2)
+
+  /// Minimo 1.
+  quantity Int
+
+  /// unit_price_snapshot x quantity. Calculado en servidor.
+  lineTotal Decimal @map("line_total") @db.Decimal(10, 2)
+
+  /// Snapshot historico de opciones elegidas. No usa FK: es un historico inmutable.
+  /// Formato: [{ "groupLabel": "Acompanyante", "choiceLabel": "Bravas", "priceDelta": 0.00 }]
+  selectedOptions Json? @map("selected_options")
+
+  /// Ingredientes que el cliente pidio eliminar: ["Jalapenos", "Cebolla"].
+  /// Array de nombres (snapshot, no FK).
+  removedIngredients String[] @map("removed_ingredients")
+
+  /// Nota libre del cliente para esta linea: "sin sal", "bien hecho".
+  notes String?
+
+  order   Order    @relation(fields: [orderId], references: [id])
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@map("order_lines")
+}
+
+/// Historial de transiciones de estado de un pedido.
+/// Registra cada cambio de estado para trazabilidad completa en el backoffice.
+model OrderStatusHistory {
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId String @map("order_id") @db.Uuid
+
+  /// Nuevo estado del pedido en esta transicion.
+  status OrderStatus
+
+  /// null = cambio automatico del sistema (ej: creacion inicial en PENDING).
+  /// No nulo = ID del admin que realizo el cambio manualmente.
+  changedBy String? @map("changed_by") @db.Uuid
+
+  changedAt DateTime @default(now()) @map("changed_at")
+
+  /// Razon del cambio. Ej: "Confirmado por operador", "Cancelado: fuera de zona".
+  note String?
+
+  order Order  @relation(fields: [orderId], references: [id])
+  user  User?  @relation("ChangedByUser", fields: [changedBy], references: [id])
+
+  @@index([orderId])
+  @@index([orderId, changedAt])
+  @@map("order_status_history")
+}
+
+// =============================================================================
+// ANTI-FRAUDE
+// =============================================================================
+
+/// Lista negra de valores bloqueados.
+/// RGPD: retencion maxima 1 anyo. Job periodico purga filas con expires_at vencido.
+model Blacklist {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  type BlacklistType
+
+  /// El valor bloqueado, normalizado (telefono en E.164, email en minusculas).
+  value  String
+  reason String?
+
+  /// Fecha de expiracion. Retencion maxima 1 anyo (RGPD).
+  expiresAt DateTime? @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([type, value])
+  @@index([expiresAt])
+  @@map("blacklist")
+}
+
+// =============================================================================
+// EMPLEO (MVP DEFINITIVO)
+// El front ya tiene el formulario con subida de CV (POST /api/jobs).
+// Esta tabla es independiente de User: los candidatos no necesitan cuenta.
+// =============================================================================
+
+model JobApplication {
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name  String
+  /// E.164. Validado con libphonenumber-js.
+  phone String
+  email String
+
+  /// Carta de presentacion. Opcional.
+  message String?
+
+  /// Ruta en almacenamiento del servidor o bucket.
+  /// Solo PDF/DOC/DOCX. Validar tipo MIME real en el servidor, no solo extension.
+  cvFilePath String? @map("cv_file_path")
+
+  /// Nombre original del archivo subido, para mostrarlo en el backoffice.
+  cvOriginalName String? @map("cv_original_name")
+
+  /// Consentimiento RGPD obligatorio antes del envio.
+  rgpdConsent Boolean @map("rgpd_consent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("job_applications")
+}
