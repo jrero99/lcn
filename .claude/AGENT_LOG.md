@@ -64,9 +64,126 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 - [BAJO] `backend/src/controllers/adminController.js:listOrders` — el parámetro `?status=` no se valida contra el enum `OrderStatus` antes de pasarlo al where de Prisma. Un valor inválido no rompe la consulta (Prisma lo ignoraría o lanzaría error) pero es superficie de entrada sin sanear.
 - [BAJO] Dependencia transitiva vulnerable: `argon2@0.31.2` tira de `@mapbox/node-pre-gyp@1.0.11` que incluye `tar<=7.5.10` (CVE path traversal, severity HIGH). Es una dependencia de build/instalación, no de runtime, pero conviene resolverla con `npm audit fix` cuando haya versión compatible de argon2.
 
+- [MEDIO] Google SSO — vinculación automática de cuenta admin por email: si el admin (`lacasanostramataro@gmail.com`) hace login con Google y su email coincide, se vincula `googleId` sin promoción de rol (correcto), pero a partir de ese momento puede autenticarse sin contraseña. El rol se lee de BD en `requireAuth` (no del token), así que no hay escalada de privilegios. El riesgo real es que un atacante que controle una cuenta Google con el mismo email obtenga acceso admin vía SSO. Mitigación recomendada: registrar explícitamente en el log de auditoría cada vinculación de googleId en una cuenta existente (`backend/src/services/authService.js:224`), y considerar requerir re-autenticación por contraseña antes de vincular SSO en cuentas con `role=ADMIN`.
+- [MEDIO] Google SSO — `jwt.js:22` `maxAge` de cookie sigue a 7 días independientemente del `JWT_EXPIRES_IN`. Este riesgo existía antes del SSO pero se agrava porque ahora hay más superficie de autenticación. Pendiente de la deuda [ALTO] ya registrada sobre JWT lifetime.
+- [BAJO] Google SSO — `googleAuthLimiter` (10 req/IP/15 min) es más permisivo que `loginLimiter` (5 req/IP/15 min). Dado que ambos endpoints producen la misma cookie JWT, el endpoint SSO podría usarse para eludir el rate-limit más estricto del login por contraseña. Recomendación: igualar a 5 req/IP/15 min (`backend/src/middleware/rateLimiter.js:44`).
+- [BAJO] Google SSO — RGPD: usuarios creados por SSO reciben `acceptedTerms: true` y `acceptedPrivacy: true` automáticamente (`backend/src/services/authService.js:247`). Esto se documenta como deuda post-MVP, pero implica que no hay consentimiento explícito registrado para estos usuarios. Bloqueante legal antes de producción.
+- [BAJO] Google SSO — `dummyHash` en `login()` no es un hash argon2id válido. Si `argon2.verify` recibe ese string malformado lanzará una excepción en lugar de devolver `false`, lo que podría producir un 500 en lugar del 401 esperado. El flujo correcto se mantiene gracias al `if (!user.passwordHash)` posterior, pero la rama de timing-safe falla antes. Corrección: usar un hash pre-calculado real o capturar el error de `argon2.verify` (`backend/src/services/authService.js:98-102`).
 ---
 
 ## Bitácora
+
+### [2026-06-16] frontend-react — Google SSO integrado en Login y Registro
+
+- **Qué cambió**:
+
+  **Ficheros nuevos:**
+  - `frontend/src/components/GoogleSignInButton.jsx`: componente reutilizable que carga el script de Google Identity Services dinámicamente (tolerante a doble carga), inicializa `google.accounts.id` con `VITE_GOOGLE_CLIENT_ID`, renderiza el botón oficial GIS (`renderButton`), llama a `googleLoginRequest()` en el callback y expone `onSuccess(data)` / `onError(message)` al padre. Si `VITE_GOOGLE_CLIENT_ID` está vacío, no renderiza nada (sin error). Flujo popup (`ux_mode: 'popup'`).
+  - `frontend/.env.example`: nuevo fichero con `VITE_API_URL` y `VITE_GOOGLE_CLIENT_ID` documentadas. Instrucciones para obtener el Client ID en Google Cloud Console y los orígenes a añadir (`http://localhost:5173`, `https://jrero99.github.io`).
+
+  **Ficheros modificados:**
+  - `frontend/src/services/authService.js`: nueva función `googleLoginRequest(credential)` — `POST /api/auth/google` con `credentials: 'include'`. Mensajes de error localizados por código HTTP (401/403/422/429/503). El credential se descarta tras el envío.
+  - `frontend/src/pages/Login.jsx`: importa `GoogleSignInButton`; añade `handleGoogleSuccess()` que llama a `login()` (hidrata `AuthContext` via `GET /api/auth/me`) y redirige a `location.state.from` o `/`. El botón y el separador "o" se renderizan antes del formulario de email/contraseña.
+  - `frontend/src/pages/Registro.jsx`: ídem; `handleGoogleSuccess()` navega a `/` (el backend hace find-or-create, no es necesario el modal de bienvenida). Añadido `serverError` state para errores de Google SSO.
+  - `frontend/src/index.css`: nuevas clases `.auth-sso-separator`, `.google-signin-wrapper`, `.google-signin-button-container`, `.google-signin-loading`.
+  - `frontend/index.html`: `<script src="https://accounts.google.com/gsi/client" async defer>` añadido en `<head>`. El componente también tolera que el script no esté cargado aún (espera el evento `load`).
+
+- **Por qué**: Integración del endpoint `POST /api/auth/google` implementado por `backend-node` (entrada del 2026-06-16).
+
+- **Flujo de usuario**:
+  1. El usuario accede a `/login` o `/registro`.
+  2. Ve el botón oficial de Google encima del formulario de email/contraseña.
+  3. Al pulsar, se abre el popup de selección de cuenta de Google.
+  4. Google devuelve un ID token al callback del componente.
+  5. `googleLoginRequest` hace `POST /api/auth/google { credential }` con `credentials: 'include'`.
+  6. El backend verifica el token, hace find-or-create y setea la cookie JWT httpOnly.
+  7. El componente llama a `onSuccess(data)`, que invoca `login()` en `AuthContext` → `GET /api/auth/me`.
+  8. La app redirige al destino original (ruta guardada por `ProtectedRoute`) o a `/`.
+  - En caso de error: el mensaje del servidor (o el texto localizado por código HTTP) se muestra en el `<p role="alert">` ya existente en cada página. El formulario de email/contraseña sigue disponible.
+  - Si `VITE_GOOGLE_CLIENT_ID` no está configurado: el botón no aparece, sin error ni excepción. La página funciona exactamente igual que antes del cambio.
+
+- **Supuestos / pendiente**:
+  - El OAuth 2.0 Web Client ID debe crearse en Google Cloud Console y añadirse a `.env.local` como `VITE_GOOGLE_CLIENT_ID` y al `.env` del backend como `GOOGLE_CLIENT_ID`.
+  - En producción (GitHub Pages), el botón solo funcionará una vez que el backend esté desplegado con `GOOGLE_CLIENT_ID` configurado.
+  - Si el usuario bloquea el script de Google (uBlock, Firefox Enhanced Privacy), el botón no aparece y el formulario de email/contraseña funciona normalmente.
+  - RGPD (deuda existente): usuarios creados por SSO tienen `acceptedTerms/Privacy: true` automáticamente sin consentimiento explícito. Bloqueante legal antes de producción (registrado en riesgos abiertos).
+
+- **Impacto para otros agentes**:
+  - `testing-expert`: nuevos casos a cubrir: (1) `VITE_GOOGLE_CLIENT_ID` ausente → botón no renderizado; (2) Google SSO exitoso → sesión hidratada y redirección; (3) token inválido → mensaje de error visible; (4) backend 503 → mensaje de error localizado.
+  - `qa-expert`: verificar en móvil que el popup de Google no queda cortado; verificar que el separador "o" es visible a 360px; target ≥44px en el botón oficial de GIS.
+
+- **Acción requerida**:
+  - Configurar `VITE_GOOGLE_CLIENT_ID` en `.env.local` del frontend y `GOOGLE_CLIENT_ID` en `.env` del backend.
+  - Google Cloud Console: crear/configurar el Web Client ID con los orígenes autorizados (ver `.env.example`).
+
+- **Build verificado**: `npm run build` → 0 errores, 0 warnings. 81 módulos transformados.
+
+### [2026-06-16] backend-node — Google SSO: `POST /api/auth/google` + modelo híbrido
+
+- **Qué cambió**:
+
+  **Modelo de datos (`prisma/schema.prisma`)**
+  - `passwordHash` ahora es **nullable** (`String?`): usuarios creados solo con Google no tienen contraseña local.
+  - Nuevo campo `googleId String? @unique @map("google_id")`: el `sub` del token de Google. Null para usuarios de contraseña que nunca han vinculado Google.
+  - Nuevo enum `AuthProvider { PASSWORD GOOGLE }` y campo `provider AuthProvider @default(PASSWORD)` en `User`. Híbrido: si un usuario de contraseña vincula Google, `provider` queda como `PASSWORD` pero `googleId` se rellena (puede entrar por ambas vías).
+  - Migración: `prisma/migrations/20260616000000_add_google_sso/migration.sql`. Aplicada (`prisma migrate deploy`). Prisma client regenerado.
+
+  **Ficheros nuevos/modificados en `backend/`**:
+  - `src/services/authService.js` — nueva función `loginWithGoogle(credential)`: verifica el ID token con `OAuth2Client.verifyIdToken`, extrae `sub/email/email_verified/name`, implementa la lógica find-or-create (ver decisión de vinculación abajo). El bloque `login()` por contraseña ahora rechaza con `401` usuarios sin `passwordHash` (Google-only) manteniendo el mensaje genérico (no revela la causa).
+  - `src/controllers/authController.js` — nuevo handler `googleAuth`: parsea con `googleAuthSchema`, llama a `loginWithGoogle`, emite la misma cookie JWT httpOnly que `login`. El credential nunca se logea (RGPD).
+  - `src/routes/auth.js` — nueva ruta `POST /api/auth/google` con `googleAuthLimiter`. No usa honeypot (no es un formulario HTML).
+  - `src/validators/auth.js` — nuevo `googleAuthSchema`: valida `credential` (string, 100–4096 chars).
+  - `src/middleware/rateLimiter.js` — nuevo `googleAuthLimiter`: 10 req/IP cada 15 min.
+  - `src/config/env.js` — nuevo campo `googleClientId` (opcional en dev, `null` si no está). Si no está configurado, el endpoint devuelve `503`.
+  - `.env.example` — nueva variable `GOOGLE_CLIENT_ID` documentada.
+  - `package.json` — nueva dependencia `google-auth-library` instalada (`npm install`).
+
+  **Decisión de vinculación por email** (documentada también en `authService.js`):
+  - Si hay usuario con ese `googleId` → login directo.
+  - Si hay usuario con ese `email` (registrado por contraseña) → se vincula setando `googleId`; el usuario puede loguear por ambas vías. Esto evita cuentas duplicadas.
+  - Si no existe → se crea con `role: CUSTOMER`, `provider: GOOGLE`, `passwordHash: null`. NUNCA puede crearse un ADMIN por esta vía.
+
+- **Por qué**: Petición explícita del usuario. Añadir SSO con Google manteniendo la sesión unificada (misma cookie JWT httpOnly).
+
+- **Contrato del endpoint nuevo**:
+
+  ```
+  POST /api/auth/google
+  Content-Type: application/json
+  Body: { "credential": "<google_id_token_string>" }
+
+  Respuesta 200 OK (login o registro exitoso):
+  Set-Cookie: lcn_token=<jwt>; HttpOnly; SameSite=Lax; Path=/; [Secure en prod]
+  { "user": { "id": "uuid", "email": "...", "name": "Nombre Apellido", "role": "CUSTOMER" } }
+
+  Errores:
+    422  — body inválido (credential ausente o fuera de longitud)
+    401  — token de Google inválido o expirado
+    403  — email no verificado por Google | cuenta eliminada (soft-delete)
+    429  — rate limit (10 req/IP/15min)
+    503  — GOOGLE_CLIENT_ID no configurado en el servidor
+  ```
+
+- **Variables de entorno nuevas**:
+  - `GOOGLE_CLIENT_ID` (backend `.env`): OAuth 2.0 Web Client ID de Google Cloud Console. Opcional en dev (el endpoint devuelve 503 si falta).
+  - El frontend también necesita el mismo valor como **`VITE_GOOGLE_CLIENT_ID`** (public, seguro de exponer) para inicializar Google Identity Services en el cliente.
+
+- **Qué necesita el frontend para integrar**:
+  1. Cargar el script de Google Identity Services: `<script src="https://accounts.google.com/gsi/client" async>`.
+  2. Inicializar con `google.accounts.id.initialize({ client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID, callback: handleCredentialResponse })`.
+  3. En `handleCredentialResponse(response)`: hacer `POST /api/auth/google` con body `{ credential: response.credential }` y `credentials: 'include'`.
+  4. Tras respuesta 200, re-hidratar el `AuthContext` con `GET /api/auth/me` (igual que el flujo de login por contraseña ya hace en `Login.jsx`).
+  5. El botón visual puede ser el botón de Google (`google.accounts.id.renderButton`) o un botón custom que dispare `google.accounts.id.prompt()`.
+
+- **Impacto para otros agentes**:
+  - `frontend-react`: implementar el botón de "Continuar con Google" en `Login.jsx` y `Registro.jsx`. Necesita `VITE_GOOGLE_CLIENT_ID` en `.env.local`. El flujo post-login es idéntico al actual (cookie + `GET /api/auth/me`).
+  - `testing-expert`: tests de integración nuevos: (1) token válido → 200 + cookie; (2) token inválido → 401; (3) `email_verified: false` → 403; (4) usuario existente con mismo email → vincula googleId, no crea duplicado; (5) sin `GOOGLE_CLIENT_ID` configurado → 503.
+  - `security-expert`: revisar que `audience` en `verifyIdToken` está fijado al `GOOGLE_CLIENT_ID` correcto (ya implementado). El token nunca se logea. El endpoint no acepta el payload del token directamente del cliente.
+
+- **Acción requerida**:
+  - `frontend-react`: añadir botón de Google SSO en páginas de login/registro.
+  - Configurar el OAuth 2.0 Web Client en Google Cloud Console y añadir `GOOGLE_CLIENT_ID` al `.env` del backend y `VITE_GOOGLE_CLIENT_ID` al `.env.local` del frontend.
+  - En Google Cloud Console: añadir `http://localhost:5173` y `https://jrero99.github.io` como orígenes JavaScript autorizados.
 
 ### [2026-06-14] frontend-react — Catálogo dinámico: `fetchCatalog()` consume `GET /api/catalog`
 
