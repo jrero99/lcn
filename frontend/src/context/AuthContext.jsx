@@ -28,7 +28,7 @@ import { createContext, useContext, useState, useCallback, useEffect } from 'rea
 import { getMeRequest, logoutRequest } from '../services/authService.js'
 import { onUnauthorized } from '../services/sessionEvents.js'
 
-const AuthContext = createContext(null)
+export const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   // user: { id, email, firstName, lastName, role } | null
