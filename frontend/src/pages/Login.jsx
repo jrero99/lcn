@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { loginRequest } from '../services/authService.js'
+import GoogleSignInButton from '../components/GoogleSignInButton.jsx'
 
 // Login page — /login
 //
@@ -10,6 +11,8 @@ import { loginRequest } from '../services/authService.js'
 //   - The JWT is set by the server in an httpOnly cookie; JS never sees it.
 //   - After a successful login we call login() (from AuthContext), which
 //     re-fetches GET /api/auth/me to hydrate the user object.
+//   - The Google credential is handled by GoogleSignInButton and is never
+//     stored in this component's state.
 //   - Validation here is UX only; the server re-validates everything.
 export default function Login() {
   const navigate = useNavigate()
@@ -22,7 +25,7 @@ export default function Login() {
   const [serverError, setServerError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  // Redirect destination: honour ?next= or the state set by ProtectedRoute.
+  // Redirect destination: honour state set by ProtectedRoute or fall back to home.
   const from = location.state?.from ?? '/'
 
   function validate() {
@@ -66,6 +69,13 @@ export default function Login() {
     }
   }
 
+  // Called by GoogleSignInButton on a successful Google login.
+  // The backend has already set the session cookie; we just hydrate React state.
+  async function handleGoogleSuccess() {
+    await login()
+    navigate(from, { replace: true })
+  }
+
   function clearError(field) {
     if (errors[field]) {
       setErrors((prev) => {
@@ -82,12 +92,23 @@ export default function Login() {
         <h1 className="datos-title">Identifícate</h1>
         <p className="datos-sub">Introduce tu correo electrónico</p>
 
-        {/* Server-level error (e.g. wrong credentials) */}
+        {/* Server-level error (e.g. wrong credentials, Google error) */}
         {serverError && (
           <p className="field-error" role="alert" style={{ marginBottom: '1rem' }}>
             {serverError}
           </p>
         )}
+
+        {/* Google SSO — shown when VITE_GOOGLE_CLIENT_ID is configured */}
+        <GoogleSignInButton
+          onSuccess={handleGoogleSuccess}
+          onError={setServerError}
+        />
+
+        {/* "o" separator between Google button and email/password form */}
+        <div className="auth-sso-separator" role="separator" aria-label="o">
+          <span>o</span>
+        </div>
 
         <form className="datos-form auth-form" onSubmit={handleSubmit} noValidate>
           {/* Email field */}

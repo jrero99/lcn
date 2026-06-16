@@ -12,6 +12,15 @@
       rel="stylesheet"
     />
     <title>La Casa Nostra · Bocadillería Mataró</title>
+    <!--
+      Google Identity Services (GIS) — loaded here so it is available before
+      any React component mounts. `async` ensures the page is not blocked.
+      GoogleSignInButton.jsx also handles the case where the script has not
+      finished loading yet (waits for the onload event before initializing).
+      This tag is safe to have even if VITE_GOOGLE_CLIENT_ID is not set —
+      the component will simply not render the button.
+    -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
     <div id="root"></div>

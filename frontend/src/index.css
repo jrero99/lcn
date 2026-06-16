@@ -1862,6 +1862,53 @@ img.media-box {
   outline-offset: 3px;
 }
 
+/* ----------------------------------------------------------
+   Google Sign-In button (GoogleSignInButton.jsx)
+   ---------------------------------------------------------- */
+
+/* "o" separator — horizontal rule with centred text */
+.auth-sso-separator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.5rem 0 1.25rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.auth-sso-separator::before,
+.auth-sso-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #ede8e0;
+}
+
+/* Outer wrapper that centres and constrains the GIS button iframe */
+.google-signin-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Container passed to google.accounts.id.renderButton — must have a defined
+   width so GIS can size the button correctly. */
+.google-signin-button-container {
+  width: 100%;
+  min-height: 44px; /* accessible tap target */
+  display: flex;
+  justify-content: center;
+}
+
+/* Status text while POST /api/auth/google is in-flight */
+.google-signin-loading {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+  text-align: center;
+}
+
 /* ==========================================================
    Página: Carta (solo lectura, /carta)
    ========================================================== */

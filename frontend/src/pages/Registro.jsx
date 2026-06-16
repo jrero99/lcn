@@ -2,16 +2,27 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Modal from '../components/Modal.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
+import { registerRequest } from '../services/authService.js'
+import GoogleSignInButton from '../components/GoogleSignInButton.jsx'
 
 // Registration page — /registro
-// Auth is mock only. Integration point: TODO POST /api/auth/register
+// Wired to POST /api/auth/register. On success the backend sets the httpOnly
+// session cookie (auto-login); we hydrate React state via login() and show the
+// welcome modal before going home.
+//
+// Google SSO: uses the same GoogleSignInButton as Login.jsx. The backend
+// performs find-or-create, so it works for both new and returning users.
+//
+// SECURITY: passwords are sent once to the server and never logged or stored.
 export default function Registro() {
   const navigate = useNavigate()
   const { login } = useAuth()
   const [nombre, setNombre] = useState('')
   const [apellidos, setApellidos] = useState('')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [telefono, setTelefono] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   // Checkboxes
   const [mayoria, setMayoria] = useState(false)        // optional
@@ -20,6 +31,7 @@ export default function Registro() {
   const [comerciales, setComeriales] = useState(false)  // optional
 
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
   const [welcomeOpen, setWelcomeOpen] = useState(false)
 
   function validate() {
@@ -31,6 +43,11 @@ export default function Registro() {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       next.email = 'El correo no tiene un formato válido'
     }
+    if (!password) {
+      next.password = 'Introduce una contraseña'
+    } else if (password.length < 8) {
+      next.password = 'La contraseña debe tener al menos 8 caracteres'
+    }
     if (!telefono.trim()) {
       next.telefono = 'Introduce tu número de teléfono'
     } else if (!/^[+\d\s\-()]{7,}$/.test(telefono.trim())) {
@@ -41,31 +58,54 @@ export default function Registro() {
     return next
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
+    setServerError('')
+
     const errs = validate()
     setErrors(errs)
     if (Object.keys(errs).length > 0) return
 
-    // TODO: replace mock with POST /api/auth/register
-    // Body: { nombre, apellidos, email, telefono, aceptaCondiciones: true,
-    //         aceptaPrivacidad: true, aceptaComunicaciones: comerciales }
-    // On success: the real flow would navigate to /login (or auto-login).
-    // NEVER log personal data or passwords.
-    console.info('[Registro] Mock submit OK')
+    setSubmitting(true)
+    try {
+      // POST /api/auth/register — sets the httpOnly cookie (auto-login) on success.
+      // NEVER log personal data or passwords.
+      await registerRequest({
+        name: nombre.trim(),
+        apellidos: apellidos.trim(),
+        email: email.trim(),
+        password,
+        phone: telefono.trim(),
+        consentConditions: condiciones,
+        consentPrivacy: privacidad,
+        consentMarketing: comerciales,
+      })
 
-    // Mark the user as authenticated after mock registration (mock only).
-    // In the real flow, registration usually redirects to login rather than
-    // auto-logging in — adjust when backend exists (coordinate with security-expert).
-    login({ email, name: nombre })
+      // The server already issued the session cookie; hydrate React state from
+      // GET /api/auth/me (single source of truth) before showing the welcome.
+      await login()
 
-    setWelcomeOpen(true)
+      setWelcomeOpen(true)
+    } catch (err) {
+      // Show the server message (e.g. "El email ya está registrado").
+      setServerError(err.message || 'No se ha podido crear la cuenta. Inténtalo de nuevo.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   function handleWelcomeClose() {
     setWelcomeOpen(false)
-    // Navigate to login after closing the welcome modal
-    navigate('/login')
+    // The user is already logged in (cookie set on register) — go home.
+    navigate('/', { replace: true })
+  }
+
+  // Called by GoogleSignInButton after a successful Google sign-in/sign-up.
+  // The backend has already set the session cookie; we hydrate React state
+  // and go home. No welcome modal needed — the backend did find-or-create.
+  async function handleGoogleSuccess() {
+    await login()
+    navigate('/', { replace: true })
   }
 
   function clearError(field) {
@@ -83,6 +123,24 @@ export default function Registro() {
       <div className="auth-inner">
         <h1 className="datos-title">Regístrate</h1>
         <p className="datos-sub">Introduce tu correo electrónico</p>
+
+        {/* Server-level error (email/password or Google SSO) */}
+        {serverError && (
+          <p className="field-error" role="alert" style={{ marginBottom: '1rem' }}>
+            {serverError}
+          </p>
+        )}
+
+        {/* Google SSO — shown when VITE_GOOGLE_CLIENT_ID is configured */}
+        <GoogleSignInButton
+          onSuccess={handleGoogleSuccess}
+          onError={setServerError}
+        />
+
+        {/* "o" separator between Google button and email/password form */}
+        <div className="auth-sso-separator" role="separator" aria-label="o">
+          <span>o</span>
+        </div>
 
         <form className="datos-form auth-form" onSubmit={handleSubmit} noValidate>
           {/* 2-column grid for personal data fields */}
