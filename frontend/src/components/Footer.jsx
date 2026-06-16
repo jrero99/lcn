@@ -1,13 +1,7 @@
 import { Link } from 'react-router-dom'
 import Logo from './Logo.jsx'
 import { BUSINESS } from '../data/business.js'
-
-const HOURS = [
-  { day: 'Miércoles a jueves', time: '18:00 – 23:30' },
-  { day: 'Viernes', time: '18:00 – 00:00' },
-  { day: 'Sábado', time: '11:00 – 16:00 / 19:00 – 00:00' },
-  { day: 'Domingo', time: '11:00 – 16:00' },
-]
+import { FOOTER_HOURS } from '../data/hours.js'
 
 // Pages column links.
 // - Internal SPA routes use <Link to="...">.
@@ -40,7 +34,7 @@ export default function Footer() {
         <div className="footer-col">
           <h4>Horarios</h4>
           <ul className="footer-hours">
-            {HOURS.map((h) => (
+            {FOOTER_HOURS.map((h) => (
               <li key={h.day}>
                 <strong>{h.day}</strong>
                 <span>{h.time}</span>
