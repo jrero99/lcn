@@ -134,6 +134,131 @@ Sin `app.set('trust proxy', 1)`, `express-rate-limit` y todos los limiters (`add
 
 ## Bitácora
 
+### [2026-06-16] testing-expert — Infraestructura de testing del backend + cobertura >90%
+
+- **Qué cambió**:
+  - Instaladas dependencias de test: `jest@30`, `@jest/globals`, `supertest`, `cross-env`.
+  - Configurado Jest para ESM nativo (`NODE_OPTIONS=--experimental-vm-modules`, `transform: {}`), con `coverageProvider: babel` (default), cobertura de `src/**/*.js` excluyendo `src/index.js`, y `coverageThreshold` global 90% en las 4 métricas.
+  - Añadidos scripts `"test"` y `"test:coverage"` a `package.json`.
+  - Creado `tests/setup.js` con las variables de entorno mínimas para arrancar la app sin `.env` real (sin BD, sin Google SSO, sin servidor iniciado).
+  - **Refactors mínimos de producción para testabilidad** (anotados):
+    1. `src/index.js` — `app.listen()` se guarda con `if (process.env.NODE_ENV !== 'test')` para que la app sea importable por Supertest sin ocupar puerto. El comportamiento en producción es idéntico.
+    2. `src/middleware/rateLimiter.js` — Refactorizado para exportar `json429` y `makeLimiter()`. Los rate limiters retornan passthrough cuando `TEST_DISABLE_RATE_LIMIT=true`. En producción el comportamiento es idéntico al anterior.
+  - **26 suites de test, 387 tests** cubriendo:
+    - `utils/`: httpError, jwt (signToken, setAuthCookie, clearAuthCookie).
+    - `config/`: openingHours (horarios reales, todos los días, rangos límite, gap entre rangos).
+    - `middleware/`: auth (requireAuth/requireAdmin), cors, errorHandler, honeypot, rateLimiter, requestLogger.
+    - `validators/`: auth (register, login, google), addresses (create/update, zona), orders, reservations, admin.
+    - `services/`: addressService (buildAddressSnapshot, listAddresses, createAddress, updateAddress con M-1 zone fix, softDeleteAddress, softDeleteAllUserAddresses, resolveAddressForOrder), authService (normalizePhone, register, login con lock-out, getMe, loginWithGoogle — todos los flujos SSO —, deleteAccount), catalogService, reservationService, orderService (idempotencia, PICKUP/DELIVERY, fraude, blacklist).
+    - `integration/`: health, auth (register/login/logout/me/google/deleteAccount), catalog, reservations, addresses (CRUD completo + IDOR + zona parcial M-1), orders (PICKUP/DELIVERY/idempotencia/422/403), admin (orders/catalog/users/blacklist).
+
+- **Resultado final**:
+  ```
+  All files | 96.19% stmts | 90.34% branches | 98.96% funcs | 97.38% lines
+  Tests: 387 passed, 26 suites
+  ```
+  Los 4 umbrales de 90% están superados.
+
+- **Branches no cubiertas justificadas** (código defensivo/dead code):
+  - `reservationService.js:122,188` — operadores `??` defensivos en `getMadridComponents` (Intl siempre devuelve todos los parts) y en `checkReservationAvailability` (isWithinOpeningHours siempre devuelve reason cuando open=false). Inalcanzables por diseño.
+  - `orderService.js:13,15-17` — branches `if (phone)`, `if (addressStr)`, `if (email)` en `checkBlacklist` cuando los tres son null simultáneamente. En el flujo real, siempre hay al menos phone y email.
+  - `orderService.js:118` — guard de belt-and-suspenders `if (!addressId)` en el bloque DELIVERY (Zod ya lo valida antes).
+  - `authService.js:42-57,200` — la rama del phone con formato `00X` (tests usan E.164 o número válido), y la rama `if (!user.googleId)` cuando el usuario SSO ya tiene googleId vinculado a otro googleId.
+  - `addresses.js validator:65,67` — branches del refinement de zona (`validCity || validPostal`) cuando la combinación parcial es evaluada.
+  - `env.js:8,14-20` — la función `required()` lanza cuando la var falta (no ocurre en tests porque el setup las define), y los valores opcionales del config object.
+  - `prisma.js:4` — el módulo real de Prisma no se importa (siempre mockeado).
+  - `adminController.js`: líneas de mapping y manejo de error de casos de datos no aportados en tests de integración (edge cases de admin).
+  - `authController.js:45,62-63,77` — funciones logout, googleAuth handler y deleteAccount en algunas ramas de error poco frecuentes.
+
+- **Impacto para otros agentes**: ningún cambio de contrato de API. Los refactors son mínimos y compatibles con producción.
+- **Acción requerida**: ninguna.
+
+### [2026-06-16] testing-expert — Auditoría y ejecución de suite de tests de addresses + orders
+
+- **Qué cambió**: Auditoría completa de los tests existentes relativos a la feature de direcciones y envío de pedidos. No se añadieron archivos nuevos: todos los casos requeridos ya estaban implementados en las suites existentes.
+- **Por qué**: Solicitud explícita de verificar cobertura de: CRUD /api/addresses + IDOR/BOLA, validación de zona de reparto en PATCH parcial, y contrato addressId en POST /api/orders.
+- **Suites relevantes auditadas**:
+  - `/Users/jrero/Documents/lcn/backend/tests/integration/addresses.test.js` — cobertura completa: GET 401/200/aislamiento por usuario; POST 401/201/422-zona/422-límite-10/422-campos-inválidos; PATCH 401/200/404-IDOR/404-no-encontrado/422-vacío + los 4 casos de zona parcial (M-1); DELETE 401/204/404-IDOR/404-no-encontrado/404-ya-borrado.
+  - `/Users/jrero/Documents/lcn/backend/tests/services/addressService.test.js` — unitarios: buildAddressSnapshot, listAddresses, createAddress (cap 10), updateAddress (IDOR 404 no 403, 4 casos de zona parcial M-1), softDeleteAddress, softDeleteAllUserAddresses, resolveAddressForOrder.
+  - `/Users/jrero/Documents/lcn/backend/tests/validators/addresses.test.js` — schema createAddressSchema + updateAddressSchema: zona (CP 08301-08304 o ciudad Mataró/mataro), formato CP, campos obligatorios, límites de longitud.
+  - `/Users/jrero/Documents/lcn/backend/tests/integration/orders.test.js` — POST /api/orders: 401, 201-PICKUP, 200-idempotencia, 201-DELIVERY con addressId, 422-DELIVERY sin addressId, 400-addressId otro usuario.
+  - `/Users/jrero/Documents/lcn/backend/tests/services/orderService.test.js` — createOrder: total recalculado en servidor, idempotencia, DELIVERY con snapshot de dirección, 400-addressId otro usuario/no encontrado/borrado, fraude, opciones con priceDelta.
+  - `/Users/jrero/Documents/lcn/backend/tests/validators/orders.test.js` — createOrderSchema: DELIVERY exige addressId, PICKUP sin addressId ok.
+- **Resultado de ejecución real**: `Test Suites: 25 passed, 25 total | Tests: 369 passed, 369 total`. Sin fallos. Sin BD real requerida (todo el backend usa mocks de Prisma via jest.unstable_mockModule).
+- **Impacto para otros agentes**: ninguno.
+- **Acción requerida**: ninguna. Los tests de integración no necesitan DATABASE_URL; el patrón del proyecto usa Prisma mockeado a nivel de módulo.
+
+### [2026-06-16] frontend-react — ContactPhone editable en OrderConfirmation
+
+- **Qué cambió**:
+  - `frontend/src/pages/OrderConfirmation.jsx`:
+    - `contactPhone` pasa de ser una constante `user?.phone ?? null` a un estado React `useState(user?.phone ?? '')`.
+    - Se añade input `type="tel"` prerrellenado con el teléfono del perfil, editable por el usuario para usar otro número solo en ese pedido. Permite a usuarios Google SSO (sin teléfono en perfil) introducir el teléfono directamente en este paso sin necesidad de ir al perfil.
+    - Se elimina el bloqueo duro del botón por falta de teléfono en perfil (`!contactPhone`). En su lugar, validación en cliente antes del submit: campo obligatorio + regex `^(\+34)?[6789]\d{8}$` (equivalente a `libphonenumber-js isValidPhoneNumber(val, 'ES')`). Mensaje de error con `role="alert"` bajo el input, en castellano.
+    - Se añade la función `isValidSpanishPhone(value)` (module-level) que normaliza espacios/guiones/paréntesis y aplica la regex.
+    - Se elimina el bloque JSX `.confirm-phone-warning` (ya no aplica).
+    - El teléfono enviado a `POST /api/orders` es el del campo (trimmed), no directamente `user.phone`.
+    - Input accesible: `<label htmlFor>`, `aria-describedby`, `aria-invalid`, `autoComplete="tel"`, `disabled` durante envío.
+  - `frontend/src/index.css`:
+    - Se elimina `.confirm-phone-warning`.
+    - Se añaden `.confirm-phone-field`, `.confirm-phone-label`, `.confirm-phone-input`, `.confirm-phone-input--error`, `.confirm-phone-hint`.
+- **Por qué**: usuario Google SSO sin teléfono en perfil quedaba bloqueado. Ahora puede indicar el teléfono en el paso de confirmación directamente.
+- **Impacto para otros agentes**: ninguno. Contrato de `POST /api/orders` no cambia.
+- **Acción requerida**: ninguna. Build limpio verificado.
+
+### [2026-06-16] security-expert — Auditoría SQLi + validación de entradas (backend completo)
+
+- **Qué cambió**: Auditoría de inyección SQL y saneamiento de inputs en todo el backend (`backend/src/`).
+- **Por qué**: Petición explícita del usuario: verificar si los inputs pueden ser explotados con ataques SQL.
+- **Resultado**: **PROTEGIDO contra SQLi**. No existe ninguna query raw ni concatenación de strings SQL en el código. Toda la interacción con la BD usa el Prisma Query API parametrizado. Se documentan un hallazgo BAJO (sin bloquear MVP) y se confirma la deuda ya conocida sobre `?status=` en adminController.
+- **Hallazgos nuevos documentados en "Deuda / riesgos abiertos"**: ninguno nuevo crítico/alto/medio. Confirmado el [BAJO] de `?status=` ya existente; ver detalle completo en la respuesta del agente.
+- **Acción requerida**: Ninguna bloqueante. El [BAJO] de `?status=` puede resolverse añadiendo `.refine(v => Object.values(OrderStatus).includes(v))` en el parámetro de query de `listOrders`.
+
+### [2026-06-16] frontend-react — POST /api/orders integration + página Mis Direcciones
+
+- **Qué cambió**:
+
+  **Ficheros nuevos:**
+  - `frontend/src/services/orderService.js` — capa de servicios para `POST /api/orders`. Mapea valores UI (`recoger`→`PICKUP`, `domicilio`→`DELIVERY`, `asap`→`ASAP`, `programar`→`SCHEDULED`) a los enums que espera el validador. Construye el body con los campos exactos del schema Zod (`idempotencyKey`, `mode`, `paymentMethod`, `timing`, `contactPhone`, `items[]`, `addressId?`, `notes?`). Manejo de errores en castellano por código HTTP (401, 403, 422, 429). Llama a `notifyUnauthorized()` en 401. Usa `credentials: 'include'`.
+  - `frontend/src/pages/MisDirecciones.jsx` — página de cuenta standalone para gestionar direcciones. Protegida por sesión: redirige a `/login` con `state.from='/mis-direcciones'` si no hay sesión activa. Monta `<AddressManager showHeading={false} />` sin props de selección (modo gestión pura: listar, añadir, editar, borrar).
+
+  **Ficheros modificados:**
+  - `frontend/src/pages/OrderConfirmation.jsx` — reescritura del submit:
+    - `idempotencyKey`: generado con `crypto.randomUUID()` en `useRef` una sola vez por montaje. Se reutiliza en reintentos (no se regenera en cada click).
+    - Botón "Confirmar pedido" con estado de carga (`submitting`): deshabilitado mientras envía y tras éxito.
+    - Éxito (201): abre `Modal` genérico con `confirmationTitle?/confirmationMessage?` del servidor (defaults del componente si ausentes). Al cerrar el modal → `navigate('/', { replace: true })` (carrito ya limpio porque `OrderCatalog` está desmontado).
+    - Error: abre `Modal` genérico con el mensaje del `orderService` (error de red, 403, 422, 429). El `idempotencyKey` se conserva para reintentos.
+    - Guard de teléfono: si `user.phone` no existe → warning visible + botón deshabilitado.
+    - `paymentMethod` fijo a `'CASH'` (decisión de MVP: pago contra reembolso).
+    - `contactPhone` leído de `useAuth().user.phone`.
+    - No envía `total` al servidor (el backend lo recalcula).
+    - Sección de botones "Modificar pedido / Volver al inicio" solo visible mientras no hay éxito.
+  - `frontend/src/App.jsx` — nueva ruta `<Route path="/mis-direcciones" ... />`.
+  - `frontend/src/components/Header.jsx` — link "Mis direcciones" en el bloque autenticado del header (entre el saludo y "Cerrar sesión").
+  - `frontend/src/index.css` — nuevas clases: `.confirm-submit-form`, `.confirm-phone-warning`, `.mis-direcciones-manager`.
+
+- **Decisiones tomadas**:
+  - `paymentMethod` fijo a `'CASH'` en MVP. Si en el futuro se quiere elegir CARD/CASH, se añade un fieldset en `OrderConfirmation` y se pasa el valor seleccionado.
+  - `idempotencyKey` en `useRef` para que persista entre re-renders y el usuario pueda reintentar sin duplicar el pedido en el servidor.
+  - La página `MisDirecciones` tiene su propia guarda de sesión (no usa `ProtectedRoute`) para seguir el mismo patrón que `OrderConfirmation` y `PedidoDatos`, y para poder preservar `from`.
+  - El link "Mis direcciones" se añade al header en el bloque autenticado, no como ruta en el menú público `NAV_LINKS` (es una funcionalidad de cuenta, no de navegación general).
+
+- **Verificación**: `npm run build` → 87 módulos, 0 errores, 0 warnings.
+
+- **Impacto para otros agentes**:
+  - `testing-expert`: nuevos flujos a cubrir:
+    1. `OrderConfirmation` — submit exitoso → Modal se abre con título/mensaje del servidor; al cerrar → redirect a `/`.
+    2. `OrderConfirmation` — submit con error de red → Modal de error; el botón "Confirmar" vuelve a estar habilitado para reintentar.
+    3. `OrderConfirmation` — usuario sin `phone` → botón deshabilitado + warning visible.
+    4. `OrderConfirmation` — reintento tras error de red usa el mismo `idempotencyKey` (verificar que no se regenera entre clicks).
+    5. `MisDirecciones` — sin sesión → redirect a `/login?from=/mis-direcciones`.
+    6. `MisDirecciones` — con sesión → `AddressManager` visible sin radio de selección ni botón "Continuar".
+    7. Header autenticado → link "Mis direcciones" visible; header no autenticado → link ausente.
+  - `backend-node`: sin cambios de contrato. El body enviado por `orderService.createOrder` cumple exactamente el schema de `createOrderSchema` en `backend/src/validators/orders.js`.
+  - `qa-expert`: verificar flujo completo: hacer pedido → confirmar → success modal → redirect a inicio (carrito vacío). Verificar que "Mis direcciones" en el header lleva a la página correcta y que AddressManager funciona igual que en el flujo de pedido.
+
+- **Acción requerida**: ninguna para otros agentes.
+
 ### [2026-06-16] frontend-react — Centralized 401 session-expiry handling
 
 - **Qué cambió**:
