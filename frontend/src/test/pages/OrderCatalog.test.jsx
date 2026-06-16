@@ -114,19 +114,23 @@ describe('OrderCatalog page', () => {
     await waitFor(() => expect(screen.getByText('Bocadillo de Jamón')).toBeInTheDocument())
     const card = screen.getByRole('button', { name: /Ver detalle de Bocadillo de Jamón/ })
     fireEvent.click(card)
-    // The modal renders after React state update — wait for it
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
-    expect(screen.getByText('Con jamón ibérico')).toBeInTheDocument()
+    // The modal renders after React state update — wait for the close button to appear
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Cerrar ficha del producto/ })).toBeInTheDocument()
+    })
+    // Description text appears in both card AND modal — check modal-specific button
+    expect(screen.getByRole('button', { name: /Añadir al pedido/ })).toBeInTheDocument()
   })
 
   test('adding from modal adds to cart and closes modal', async () => {
     renderCatalog('recoger')
     await waitFor(() => expect(screen.getByText('Bocadillo de Jamón')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /Ver detalle de Bocadillo de Jamón/ }))
-    // Wait for modal to appear
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+    // Wait for modal close button to appear
+    await waitFor(() => expect(screen.getByRole('button', { name: /Cerrar ficha del producto/ })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /Añadir al pedido/ }))
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull()) // modal closed
+    // After adding, the modal close button disappears (modal closed)
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Cerrar ficha del producto/ })).toBeNull())
     expect(screen.getByText('Ver pedido (1)')).toBeInTheDocument()
   })
 
