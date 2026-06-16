@@ -24,21 +24,43 @@ arquitectura, cambias el modelo de datos, o detectas un riesgo de seguridad/QA.
 ---
 
 ## Estado consolidado (mantiene `knowledge-coordinator`)
-_Última consolidación: 2026-06-10_
+_Última consolidación: 2026-06-16_
 
 ### Contratos de API vigentes
-Ningún endpoint implementado aún. Contratos pendientes de definir cuando se andamie el backend:
 
-| Método | Ruta | Body (request) | Respuesta esperada | Estado |
-|--------|------|----------------|--------------------|--------|
-| GET | `/api/catalog` | — | `[{ id, name, description, price, allergens[], options[] }]` | Pendiente. Forma exacta documentada en `catalogMockData.js`. |
-| POST | `/api/orders` | `{ items[], total, mode, address?, paymentMethod }` | `{ orderId, confirmationTitle?, confirmationMessage? }` | Pendiente. `confirmationTitle`/`confirmationMessage` son opcionales; el front los pasa como props al `Modal` con defaults si ausentes. |
-| POST | `/api/reservations` | `{ date, time, zone, guests }` | `{ availableSlots[] }` | Pendiente. Punto de integración marcado con `// TODO` en `Reservas.jsx`. |
+| Método | Ruta | Auth | Body (request) | Respuesta | Estado |
+|--------|------|------|----------------|-----------|--------|
+| GET | `/api/catalog` | no | — | `[{ id, name, description, price, allergens[], ingredients[], options[] }]` | Implementado. `ingredients[]` expuesto desde 2026-06-16. |
+| POST | `/api/auth/register` | no | `{ name, apellidos, email, password, phone, consentConditions, consentPrivacy, consentMarketing }` | `201 { user }` + cookie JWT httpOnly | Implementado. |
+| POST | `/api/auth/login` | no | `{ email, password }` | `200 { user }` + cookie JWT httpOnly | Implementado. |
+| POST | `/api/auth/google` | no | `{ credential: "<google_id_token>" }` | `200 { user }` + cookie JWT httpOnly | Implementado. 503 si `GOOGLE_CLIENT_ID` no configurado. |
+| GET | `/api/auth/me` | cookie | — | `200 { user }` | Implementado. |
+| POST | `/api/auth/logout` | cookie | — | `200` + limpia cookie | Implementado. |
+| GET | `/api/addresses` | cookie | — | `200 { addresses: Address[] }` | Implementado (2026-06-16). |
+| POST | `/api/addresses` | cookie | `{ label?, street, number, floorDoor?, postalCode, city, notes? }` | `201 { address }` · 422 zona fuera de Mataró/08301–08304 · 422 si ya tiene 10 · 429 rate limit | Implementado (2026-06-16). |
+| PATCH | `/api/addresses/:id` | cookie | cualquier subconjunto de los campos de POST (min 1) | `200 { address }` · 404 si no existe o es de otro usuario · 422 zona | Implementado (2026-06-16). |
+| DELETE | `/api/addresses/:id` | cookie | — | `204` · 404 si no existe o es de otro usuario | Implementado (2026-06-16). |
+| POST | `/api/orders` | cookie | `{ items[], total, mode, addressId?, paymentMethod }` | `{ orderId, confirmationTitle?, confirmationMessage? }` | Pendiente de integrar en frontend. **BREAKING (2026-06-16)**: `mode=DELIVERY` exige `addressId` (UUID de dirección del usuario); el campo `address` inline ya no se acepta. `confirmationTitle`/`confirmationMessage` opcionales para el `Modal`. |
+| POST | `/api/reservations` | no | `{ date, time, zone, guests }` | `200 { availableSlots: [] }` · 422 día cerrado/fuera de horario/pasado · 403 honeypot · 429 | Implementado (2026-06-16). Punto de integración en `Reservas.jsx` marcado con TODO. |
+
+**Forma del objeto `Address` en respuesta:**
+```json
+{ "id": "uuid", "label": "Casa", "street": "Carrer de Barcelona", "number": "12",
+  "floorDoor": "3r 2a", "postalCode": "08302", "city": "Mataró",
+  "notes": "Portero 2B", "createdAt": "2026-06-16T10:00:00.000Z" }
+```
+
+**Nota sobre `POST /api/orders` y direcciones (BREAKING 2026-06-16):**
+El frontend debe enviar `addressId` (UUID) en lugar del objeto `address` inline cuando `mode=DELIVERY`. El servidor verifica el ownership del `addressId` y copia el snapshot a `Order.deliveryAddress`. Flujo: crear/seleccionar dirección con `/api/addresses` → enviar UUID en el pedido.
 
 ### Modelo de datos vigente
-_(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
-- El pedido debe incluir campo `paymentMethod` (CARD / CASH) — pago al recibir, sin cobro online.
-- Catálogo: campo `options` por producto (grupos de opciones con nombre e items seleccionables). Ver `catalogMockData.js` para estructura exacta.
+- Stack: PostgreSQL + Prisma.
+- **User**: `id, name, email, passwordHash? (nullable para Google-only), googleId?, provider (PASSWORD|GOOGLE), role (CUSTOMER|ADMIN), phone, acceptedTerms, acceptedPrivacy, acceptedMarketing, deletedAt? (soft-delete)`.
+- **Address** (tabla `addresses`, N:1 con User): `id, userId, label?, street, number, floorDoor?, postalCode CHAR(5), city, notes?, deletedAt? (soft-delete), createdAt, updatedAt`. Máx 10 por usuario. Zona restringida a Mataró (CP 08301–08304). Soft-delete justificado: pedidos históricos conservan FK `addressId`.
+- **Order**: `id, userId, items, total, mode (DELIVERY|PICKUP), deliveryAddress? (snapshot texto), addressId? FK blando → Address ON DELETE SET NULL, paymentMethod (CARD|CASH), status, createdAt`.
+- **OrderLine**: `productId? (nullable, referencia blanda)`, quantity, unitPrice, selectedOptions, removedIngredients, notes.
+- **Product / Category / Allergen / Ingredient / OptionGroup / OptionChoice**: catálogo completo seedeado (12 categorías, 82 productos, 14 alérgenos UE).
+- Migración de direcciones aplicada: `20260616100000_add_addresses`.
 
 ### Decisiones de arquitectura
 - Stack: React (front) + Node/Express (back).
@@ -47,13 +69,51 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 - **Hosting: frontend en GitHub Pages** (https://jrero99.github.io/lcn/) vía GitHub Actions (`.github/workflows/deploy.yml`). Backend sin despliegue por ahora (sigue local).
 - **Modales en el front**: existe un `Modal` genérico y accesible en `frontend/src/components/Modal.jsx`. Reusar para todos los diálogos/confirmaciones; no crear modales ad-hoc nuevos.
 - **Separación de clases CSS de modales**: `ProductModal` (bottom-sheet) usa `.product-modal-backdrop`; `Modal` genérico usa `.modal-backdrop`. Nombres distintos para evitar conflicto de cascada.
+- **Pedir requiere login** (decisión de producto confirmada 2026-06-16): ambos modos (recoger y domicilio) exigen sesión activa. La guarda vive en `PedidoDatos.jsx` (inicio del flujo) para no perder el carrito al redirigir.
+- **Dirección de entrega**: solo obligatoria en modo domicilio. En recoger no se pide. La dirección es siempre la que el cliente selecciona o crea; sin geolocalización. Sin dirección guardada = no se puede confirmar pedido a domicilio.
+- **Carrito con personalizaciones por línea**: clave de línea = `productId + JSON(opciones + ingredientes + notas)`. Mismo producto con distinta personalización genera líneas separadas.
+- **Horarios de apertura**: fuente única en el backend (`backend/src/config/openingHours.js`) y en el frontend (`frontend/src/data/hours.js`). No duplicar en otros ficheros. Si cambian los horarios, actualizar ambos.
+- **Soft-delete de Address**: borrar físicamente rompería FK de pedidos históricos. El soft-delete mantiene la fila; las direcciones borradas no aparecen al usuario pero siguen referenciadas por `Order.addressId`.
+
+### Tests pendientes — instrucciones para `testing-expert`
+
+**CRUD de direcciones + ownership/IDOR (backend, integración):**
+1. `POST /api/addresses` con CP fuera de zona (p.ej. "28001" en Madrid) → 422.
+2. `POST /api/addresses` como 11ª dirección del mismo usuario → 422.
+3. `PATCH /api/addresses/:id` con ID de dirección de otro usuario → 404 (no 403, para no revelar existencia).
+4. `DELETE /api/addresses/:id` con ID de dirección de otro usuario → 404.
+5. `GET /api/addresses` — solo devuelve las del usuario autenticado, no las de otros.
+6. `DELETE /api/users/me` (borrado de cuenta) → todas las direcciones del usuario quedan con `deletedAt` no nulo.
+
+**4 casos de PATCH parcial de zona (backend, integración):**
+- a. `PATCH { city: "Barcelona" }` sobre dirección con `postalCode: "28001"` → 422 (ambos inválidos).
+- b. `PATCH { postalCode: "28001" }` sobre dirección con `city: "Reus"` → 422 (CP inválido).
+- c. `PATCH { postalCode: "08302" }` sobre dirección con `city: "Reus"` → 200 (CP válido compensa).
+- d. `PATCH { city: "Mataró" }` sobre dirección con `postalCode: "28001"` → 200 (city válida compensa).
+
+**Contrato `addressId` en `POST /api/orders` (backend, integración):**
+1. `POST /api/orders` con `mode=DELIVERY` y `addressId` ausente → 422.
+2. `POST /api/orders` con `mode=DELIVERY` y `addressId` de dirección de otro usuario → 400/404.
+3. `POST /api/orders` con `mode=DELIVERY` y `addressId` válido propio → 201 + `Order.deliveryAddress` contiene snapshot de texto + `Order.addressId` = el UUID enviado.
+4. `POST /api/orders` con `mode=PICKUP` sin `addressId` → 201 (campo ignorado).
+
+**Frontend (React Testing Library / integración):**
+- Ver entradas de bitácora 2026-06-16 frontend-react para lista completa de casos de flujo de pedido, AddressManager, 401-session-expiry y carrito con personalizaciones.
 
 ### Deuda / riesgos abiertos
+
+**[BLOQUEANTE-DEPLOY] B-1 — `trust proxy` no configurado** (`backend/src/index.js`):
+Sin `app.set('trust proxy', 1)`, `express-rate-limit` y todos los limiters (`addressMutationLimiter`, `reservationLimiter`, `loginLimiter`, etc.) leen la IP del proxy/balanceador en lugar de la IP real del cliente. Todos los usuarios compartirían el mismo bucket y el rate limiting se agotaría colectivamente. Obligatorio antes de cualquier despliegue del backend detrás de un proxy/CDN.
+
+**[BLOQUEANTE-LEGAL] RGPD-SSO — consentimiento implícito en usuarios Google-only:**
+`acceptedTerms: true` y `acceptedPrivacy: true` se asignan automáticamente al crear cuenta por SSO (`backend/src/services/authService.js:247`). No hay consentimiento explícito registrado. Bloqueante legal antes de producción.
+
+**[POST-MVP] B-2 — `Order.deliveryAddress` no se anonimiza al borrar cuenta (RGPD):**
+`deleteAccount()` hace soft-delete de Address pero el snapshot de texto en `Order.deliveryAddress` (calle, número, ciudad) permanece en BD. Para borrado RGPD completo habría que nullificar ese campo en todos los pedidos del usuario. (`backend/src/services/authService.js:277-297`)
+
 - Número de WhatsApp real del negocio pendiente (placeholder `34XXXXXXXXX` en `Reservas.jsx`).
 - Imágenes reales pendientes: hero, polaroids de la carta (3 fotos). La foto del local ya está integrada (`local.png`; pendiente optimización a `.webp`).
 - Fuente Salo sin auto-alojar (`@font-face` comentado en `index.css`; archivos ausentes en `assets/fonts/`).
-- Páginas Login y Registro sin construir; enlace "Iniciar Sesión" en el header apunta a `#` con TODO.
-- El keying del carrito es por `product.id` — variantes de opciones no generan líneas separadas (TODO en `OrderCatalog.jsx`).
 - Modal de HORAS DISPONIBLES en el flujo de reservas es iteración futura (TODO en `Reservas.jsx`).
 - [ALTO] JWT access token configurado a 7 días en `backend/src/utils/jwt.js:22` (maxAge cookie) pero `JWT_EXPIRES_IN` en .env.example dice "15m". El token real firmado por signToken usa `config.jwtExpiresIn` (default "7d"). Alargar la expiración en caso de robo de cookie extiende mucho la ventana de ataque. Requiere alinear duración real del JWT con la del cookie o implementar refresh tokens.
 - [ALTO] Rate limiting solo por IP (`express-rate-limit` default). No hay rate limiting por teléfono/cuenta en `POST /api/orders` ni en `POST /api/auth/login` a nivel de middleware (el bloqueo por cuenta en login está en memoria en-proceso: se reinicia al reiniciar el servidor y no escala a multi-instancia).
@@ -63,15 +123,13 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 - [BAJO] `backend/src/services/authService.js:loginFailures` — Map en memoria. En reinicios del proceso o deploy multi-instancia el contador se resetea, anulando la protección de bloqueo temporal.
 - [BAJO] `backend/src/controllers/adminController.js:listOrders` — el parámetro `?status=` no se valida contra el enum `OrderStatus` antes de pasarlo al where de Prisma. Un valor inválido no rompe la consulta (Prisma lo ignoraría o lanzaría error) pero es superficie de entrada sin sanear.
 - [BAJO] Dependencia transitiva vulnerable: `argon2@0.31.2` tira de `@mapbox/node-pre-gyp@1.0.11` que incluye `tar<=7.5.10` (CVE path traversal, severity HIGH). Es una dependencia de build/instalación, no de runtime, pero conviene resolverla con `npm audit fix` cuando haya versión compatible de argon2.
-
 - [MEDIO] Google SSO — vinculación automática de cuenta admin por email: si el admin (`lacasanostramataro@gmail.com`) hace login con Google y su email coincide, se vincula `googleId` sin promoción de rol (correcto), pero a partir de ese momento puede autenticarse sin contraseña. El rol se lee de BD en `requireAuth` (no del token), así que no hay escalada de privilegios. El riesgo real es que un atacante que controle una cuenta Google con el mismo email obtenga acceso admin vía SSO. Mitigación recomendada: registrar explícitamente en el log de auditoría cada vinculación de googleId en una cuenta existente (`backend/src/services/authService.js:224`), y considerar requerir re-autenticación por contraseña antes de vincular SSO en cuentas con `role=ADMIN`.
 - [MEDIO] Google SSO — `jwt.js:22` `maxAge` de cookie sigue a 7 días independientemente del `JWT_EXPIRES_IN`. Este riesgo existía antes del SSO pero se agrava porque ahora hay más superficie de autenticación. Pendiente de la deuda [ALTO] ya registrada sobre JWT lifetime.
 - [BAJO] Google SSO — `googleAuthLimiter` (10 req/IP/15 min) es más permisivo que `loginLimiter` (5 req/IP/15 min). Dado que ambos endpoints producen la misma cookie JWT, el endpoint SSO podría usarse para eludir el rate-limit más estricto del login por contraseña. Recomendación: igualar a 5 req/IP/15 min (`backend/src/middleware/rateLimiter.js:44`).
-- [BAJO] Google SSO — RGPD: usuarios creados por SSO reciben `acceptedTerms: true` y `acceptedPrivacy: true` automáticamente (`backend/src/services/authService.js:247`). Esto se documenta como deuda post-MVP, pero implica que no hay consentimiento explícito registrado para estos usuarios. Bloqueante legal antes de producción.
 - [BAJO] Google SSO — `dummyHash` en `login()` no es un hash argon2id válido. Si `argon2.verify` recibe ese string malformado lanzará una excepción en lugar de devolver `false`, lo que podría producir un 500 en lugar del 401 esperado. El flujo correcto se mantiene gracias al `if (!user.passwordHash)` posterior, pero la rama de timing-safe falla antes. Corrección: usar un hash pre-calculado real o capturar el error de `argon2.verify` (`backend/src/services/authService.js:98-102`).
 - [RESUELTO 2026-06-16] Addresses — PATCH con city sin postalCode (o viceversa): el refinement de zona en `updateAddressSchema` ha sido movido a `addressService.updateAddress()`, donde la fila existente ya está cargada. Se calculan los valores efectivos (`incoming ?? existing`) antes de validar la zona. Casos como PATCH `{ city: "Barcelona" }` sobre fila con `postalCode: "28001"` ahora devuelven 422. Ver bitácora 2026-06-16 backend-node (fix M-1).
-- [BAJO] Addresses — `addressMutationLimiter` es por IP (20 req/hora). Si el servicio se despliega detrás de un proxy/balanceador sin `app.set('trust proxy', 1)`, todos los clientes compartirán la IP del proxy y el limiter se agotará colectivamente. Verificar que `trust proxy` está configurado cuando se despliegue el backend. (`backend/src/middleware/rateLimiter.js:64`, `backend/src/index.js`)
-- [BAJO] Addresses RGPD — el borrado de cuenta (`deleteAccount`) hace soft-delete de direcciones pero `Order.deliveryAddress` (snapshot de texto con calle, número, ciudad) permanece sin anonimizar. Para un borrado RGPD completo post-MVP habría que nullificar también ese campo. Documentado como pendiente en el AGENT_LOG (2026-06-16 backend-node), pero conviene registrarlo aquí también como riesgo abierto. (`backend/src/services/authService.js:277-297`)
+- [QA-PENDIENTE] GAP-6 — separador "o" en Login/Registro se muestra aunque no haya botón de Google (cuando `VITE_GOOGLE_CLIENT_ID` está vacío). Verificar visualmente que el separador desaparece junto con el botón.
+- [QA-PENDIENTE] GAP-7 — mezcla catalán/castellano en `CheckoutBar` y `OrderConfirmation`. Textos como "Sin dirección seleccionada" (castellano) conviven con literales en catalán. Pendiente de decisión de idioma y revisión editorial.
 ---
 
 ## Bitácora
