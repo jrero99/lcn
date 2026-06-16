@@ -48,3 +48,23 @@ export const googleAuthLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 })
+
+// POST /api/reservations — 5 req/IP per hour
+export const reservationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  handler: json429,
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+// POST /api/addresses — 20 req/IP per hour
+// Authenticated endpoint; the 10-address-per-user cap in the service is the
+// primary anti-abuse measure. Rate limiting adds a secondary layer.
+export const addressMutationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  handler: json429,
+  standardHeaders: true,
+  legacyHeaders: false,
+})

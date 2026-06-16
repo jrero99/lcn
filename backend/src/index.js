@@ -17,6 +17,8 @@ import catalogRoutes from './routes/catalog.js'
 import ordersRoutes from './routes/orders.js'
 import adminRoutes from './routes/admin.js'
 import usersRoutes from './routes/users.js'
+import reservationsRoutes from './routes/reservations.js'
+import addressesRoutes from './routes/addresses.js'
 
 const app = express()
 
@@ -45,6 +47,8 @@ app.use('/api/catalog', catalogRoutes)
 app.use('/api/orders', ordersRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/users', usersRoutes)
+app.use('/api/reservations', reservationsRoutes)
+app.use('/api/addresses', addressesRoutes)
 
 // ── 404 handler (must be after all routes)
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }))

@@ -1,8 +1,6 @@
 import { z } from 'zod'
 import { isValidPhoneNumber } from 'libphonenumber-js'
 
-const MATARO_POSTAL_CODES = ['08301', '08302', '08303', '08304']
-
 const spanishPhone = z.string().superRefine((val, ctx) => {
   if (!isValidPhoneNumber(val.trim(), 'ES')) {
     ctx.addIssue({
@@ -11,29 +9,6 @@ const spanishPhone = z.string().superRefine((val, ctx) => {
     })
   }
 })
-
-const addressSchema = z
-  .object({
-    street: z.string().trim().min(3).max(200),
-    city: z.string().trim().min(2).max(100),
-    postalCode: z.string().trim().regex(/^\d{5}$/, 'Invalid postal code'),
-    province: z.string().trim().max(100).optional(),
-    country: z.string().trim().length(2).optional(),
-  })
-  .superRefine((val, ctx) => {
-    const cityLower = val.city.toLowerCase()
-    const validCity =
-      cityLower.includes('mataró') || cityLower.includes('mataro')
-    const validPostal = MATARO_POSTAL_CODES.includes(val.postalCode)
-    if (!validCity && !validPostal) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          'Delivery is only available in Mataró (postal codes 08301-08304)',
-        path: ['postalCode'],
-      })
-    }
-  })
 
 const orderItemSchema = z.object({
   productId: z.string().min(1),
@@ -52,17 +27,23 @@ export const createOrderSchema = z
     scheduledFor: z.string().datetime().optional(),
     contactPhone: spanishPhone,
     items: z.array(orderItemSchema).min(1).max(50),
-    address: addressSchema.optional(),
+    // For DELIVERY orders, the client must send an addressId (UUID) that
+    // belongs to their account. The server resolves the address, copies it
+    // as a snapshot to Order.deliveryAddress, and stores the FK in addressId.
+    // Inline address objects are no longer accepted — addresses must be
+    // created first via POST /api/addresses.
+    addressId: z.string().uuid('addressId must be a UUID').optional(),
     notes: z.string().trim().max(500).optional(),
     // Honeypot — must be absent or empty
     _honey: z.string().max(0).optional(),
   })
   .superRefine((val, ctx) => {
-    if (val.mode === 'DELIVERY' && !val.address) {
+    if (val.mode === 'DELIVERY' && !val.addressId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'address is required for DELIVERY orders',
-        path: ['address'],
+        message:
+          'addressId is required for DELIVERY orders. Create an address via POST /api/addresses first.',
+        path: ['addressId'],
       })
     }
     if (val.timing === 'SCHEDULED' && !val.scheduledFor) {

@@ -635,6 +635,228 @@ img.media-box {
   transition: background 0.15s ease;
 }
 .btn-continue:hover { background: var(--brand-deep); }
+.btn-continue:disabled,
+.btn-continue[aria-disabled="true"] {
+  background: var(--placeholder);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ---------- Sección de dirección en PedidoDatos ---------- */
+.datos-address-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.datos-address-hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0.2rem 0 0;
+  text-align: center;
+}
+
+/* ---------- Componente AddressManager ---------- */
+.addr-manager { display: flex; flex-direction: column; gap: 0.75rem; }
+.addr-manager-heading {
+  font-size: 1.1rem;
+  color: var(--ink);
+  margin: 0 0 0.25rem;
+}
+.addr-manager-status { padding: 1rem 0; text-align: center; }
+.addr-manager-loading-text { color: var(--muted); font-size: 0.9rem; }
+.addr-manager-error { color: var(--brand); font-size: 0.9rem; margin: 0; }
+.addr-manager-empty { color: var(--muted); font-size: 0.9rem; margin: 0; }
+.addr-manager-limit-msg {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 0.25rem 0 0;
+}
+
+/* Address list */
+.addr-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.addr-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid #e3ddd3;
+  border-radius: 10px;
+  background: #fff;
+  transition: border-color 0.15s ease;
+}
+.addr-item--selected {
+  border-color: var(--brand);
+  background: #fdf6f6;
+}
+
+/* Radio dot for address selection */
+.addr-item-radio-label { display: flex; align-items: center; flex-shrink: 0; padding-top: 0.15rem; cursor: pointer; }
+.addr-item-radio { position: absolute; opacity: 0; pointer-events: none; }
+.addr-item-radio-dot {
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid #cdc6ba;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color 0.15s ease;
+}
+.addr-item input[type="radio"]:checked ~ .addr-item-radio-dot,
+.addr-item--selected .addr-item-radio-dot {
+  border-color: var(--brand);
+  background: var(--brand);
+}
+.addr-item--selected .addr-item-radio-dot::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+/* Address content */
+.addr-item-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.addr-item-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+.addr-item-text { font-size: 0.88rem; color: var(--ink); }
+.addr-item-notes { font-size: 0.78rem; color: var(--muted); }
+
+/* Address item action buttons */
+.addr-item-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  align-items: flex-start;
+}
+.addr-item-btn {
+  background: none;
+  border: none;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  border-radius: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  transition: background 0.12s ease;
+  color: var(--muted);
+}
+.addr-item-btn:hover { background: #f0ebe3; color: var(--ink); }
+.addr-item-btn--delete:hover { color: var(--brand); }
+
+/* Add new address button */
+.addr-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: 1.5px dashed #cdc6ba;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  color: var(--brand);
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: border-color 0.15s ease, background 0.15s ease;
+  width: 100%;
+  min-height: 44px;
+}
+.addr-add-btn:hover { border-color: var(--brand); background: #fdf6f6; }
+.addr-add-btn-icon {
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--brand);
+}
+
+/* Address form */
+.addr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.addr-form-server-error {
+  background: #fdf6f6;
+  border: 1px solid var(--brand);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  color: var(--brand);
+  font-size: 0.875rem;
+  margin: 0;
+}
+.addr-form-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.addr-form-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.addr-form-optional { font-weight: normal; color: var(--muted); }
+.addr-form-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+}
+.addr-form-field--street { flex: 1; min-width: 0; }
+.addr-form-field--number { width: 90px; }
+.addr-form-field--cp { width: 110px; }
+.addr-form-field--city { flex: 1; min-width: 0; }
+.addr-form-input {
+  border: 1.5px solid #e3ddd3;
+  border-radius: 8px;
+  padding: 0.6rem 0.85rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s ease;
+  width: 100%;
+}
+.addr-form-input:focus { border-color: var(--brand); }
+.addr-form-input--error { border-color: var(--brand); }
+.addr-form-textarea { resize: vertical; min-height: 3rem; }
+.addr-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Delete confirmation modal actions */
+.addr-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+.addr-delete-error {
+  color: var(--brand);
+  font-size: 0.85rem;
+  margin: 0.25rem 0 0;
+}
+
+/* Danger variant for btn-solid (used in delete confirm) */
+.btn--danger {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+.btn--danger:hover { background: #991b1b; border-color: #991b1b; }
 
 /* ---------- Pàgina: Catàleg de comanda (OrderCatalog) ---------- */
 
@@ -1163,12 +1385,9 @@ img.media-box {
 }
 
 /* --- Barra de checkout fixa a la part inferior --- */
+/* Note: positioning is handled by .checkout-bar-container (fixed, z-index 60).
+   The bar itself is a flex child of that container. */
 .checkout-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 60;
   background: var(--brand);
   color: var(--cream);
   display: flex;
@@ -1268,20 +1487,252 @@ img.media-box {
   max-width: 460px;
   text-align: left;
 }
-.confirm-list li {
+
+/* New item wrapper — replaces old "li" direct rule */
+.confirm-list-item {
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #efe9df;
+}
+
+/* Row: quantity×name + line total */
+.confirm-list-item-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.confirm-item-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.confirm-item-price {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+/* Customisation detail lines — smaller and muted */
+.confirm-item-custom {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0 0;
+}
+
+.confirm-item-custom-row {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.confirm-item-custom-label {
+  font-weight: 600;
+  color: var(--ink);
+  opacity: 0.7;
+}
+
+/* Total row — still a plain <li> */
+.confirm-total {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   padding: 0.6rem 0;
-  border-bottom: 1px solid #efe9df;
+  font-weight: 700;
+  border-bottom: none;
 }
-.confirm-total { font-weight: 700; border-bottom: none !important; }
+
 .confirm-actions {
   display: flex;
   gap: 0.8rem;
   justify-content: center;
   flex-wrap: wrap;
   margin-top: 2.2rem;
+}
+
+/* ---------- CheckoutBar: expandable cart panel ---------- */
+
+/* Wrapper that stacks the panel above the fixed bar */
+.checkout-bar-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollable panel that slides up above the bar */
+.checkout-cart-panel {
+  background: var(--bg);
+  border-top: 2px solid var(--brand);
+  box-shadow: 0 -6px 24px rgba(43, 33, 24, 0.14);
+  max-height: 55vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.checkout-cart-panel-inner {
+  padding: 0.6rem clamp(1rem, 4vw, 2.5rem) 0.5rem;
+}
+
+.checkout-cart-lines {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* One cart line */
+.checkout-cart-line {
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #efe9df;
+}
+
+.checkout-cart-line:last-child {
+  border-bottom: none;
+}
+
+/* Main row: controls + name + price + remove */
+.checkout-cart-line-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Quantity controls group */
+.checkout-cart-line-qty {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.checkout-cart-qty-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-width: 44px; /* tap target */
+  min-height: 44px;
+  background: none;
+  border: 1.5px solid var(--brand);
+  border-radius: 50%;
+  color: var(--brand);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.checkout-cart-qty-btn:hover {
+  background: var(--brand);
+  color: var(--cream);
+}
+
+.checkout-cart-qty-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.checkout-cart-qty-num {
+  min-width: 1.8rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.checkout-cart-line-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkout-cart-line-total {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* Remove (trash) button */
+.checkout-cart-remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.checkout-cart-remove-btn:hover {
+  color: var(--brand);
+  background: #fdf0f0;
+}
+
+.checkout-cart-remove-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Customisation detail lines inside the panel */
+.checkout-cart-custom {
+  list-style: none;
+  padding: 0;
+  margin: 0.2rem 0 0 calc(44px + 44px + 0.5rem); /* indent under qty controls */
+}
+
+.checkout-cart-custom-item {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.checkout-cart-custom-label {
+  font-weight: 600;
+  color: var(--ink);
+  opacity: 0.65;
+}
+
+/* "Ver pedido (N)" toggle button inside the bar */
+.checkout-bar-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  color: var(--cream);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.13s ease, border-color 0.13s ease;
+  min-height: 36px;
+}
+
+.checkout-bar-view-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: var(--cream);
+}
+
+.checkout-bar-view-btn:focus-visible {
+  outline: 2px solid var(--cream);
+  outline-offset: 2px;
 }
 
 /* ---------- Modal ---------- */
@@ -2106,6 +2557,11 @@ img.media-box {
      right-row(~44px) + paddings(~34px) ≈ 124px. Round up to 130px. */
   .order-catalog { padding-bottom: 130px; }
 
+  /* Cart panel: reduce side padding on tablet */
+  .checkout-cart-panel-inner { padding-left: 1rem; padding-right: 1rem; }
+  /* Customisation indent: reduced on narrow screens */
+  .checkout-cart-custom { margin-left: calc(44px + 0.5rem); }
+
   /* Reservas: 2-col grid → 1-col on tablet */
   .reservas-grid { grid-template-columns: 1fr; }
 
@@ -2200,8 +2656,31 @@ img.media-box {
     padding: 0.5rem 1rem;
   }
 
+  /* Cart panel: allow more vertical space on mobile so lines are readable */
+  .checkout-cart-panel { max-height: 60vh; }
+
+  /* On very small screens, indent the customisation list less */
+  .checkout-cart-custom { margin-left: 1rem; }
+
+  /* Confirmation customisation: stay readable at 360px */
+  .confirm-item-custom-row { font-size: 0.75rem; }
+
+  /* "Ver pedido" button: grow tap target */
+  .checkout-bar-view-btn { min-height: 40px; padding: 0.4rem 0.9rem; }
+
   /* Auth: registration fields collapse to 1 column on mobile */
   .auth-fields-grid { grid-template-columns: 1fr; }
+
+  /* AddressManager: stack street + number vertically on mobile */
+  .addr-form-row {
+    grid-template-columns: 1fr;
+  }
+  .addr-form-field--number { width: 100%; }
+  .addr-form-field--cp { width: 100%; }
+
+  /* Address item: stack content and actions on narrow screens */
+  .addr-item { flex-wrap: wrap; }
+  .addr-item-actions { width: 100%; justify-content: flex-end; }
 }
 
 /* ---------- Small phones (≤400px) ---------- */

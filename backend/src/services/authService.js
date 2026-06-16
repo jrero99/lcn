@@ -275,7 +275,14 @@ export async function loginWithGoogle(credential) {
 }
 
 export async function deleteAccount(userId) {
-  // RGPD soft-delete: anonymise all personal data, then set deletedAt
+  // RGPD soft-delete: anonymise all personal data, then set deletedAt.
+  // Addresses are also soft-deleted: their rows are kept so that
+  // Order.addressId FKs remain valid, but they are hidden from the user.
+  // Import inline to avoid circular dependency (addressService imports prisma,
+  // not authService).
+  const { softDeleteAllUserAddresses } = await import('./addressService.js')
+  await softDeleteAllUserAddresses(userId)
+
   await prisma.user.update({
     where: { id: userId },
     data: {

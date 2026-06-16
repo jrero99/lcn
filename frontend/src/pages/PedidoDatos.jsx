@@ -1,80 +1,127 @@
-import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-
-// Paso "Introduce tus datos" del flujo de pedido.
+// PedidoDatos — paso "Introduce tus datos" del flujo de pedido.
+//
 // El modo ("recoger" | "domicilio") llega por query param (?mode=...).
+//
+// LÓGICA DE DIRECCIÓN:
+//  - Modo "recoger": NO se pide dirección.
+//  - Modo "domicilio":
+//      · Si no hay sesión activa → redirige a /login con state.from preservado.
+//      · Si hay sesión → carga las direcciones del usuario vía GET /api/addresses
+//        (delegado a <AddressManager>).
+//      · El usuario selecciona una dirección existente o crea una nueva.
+//      · El botón "Continuar" queda bloqueado hasta que haya una dirección seleccionada.
+//      · PROHIBIDO rellenar direcciones automáticamente (sin geolocalización).
+//
+// ESTADO QUE SE PROPAGA:
+//   navigate('/hacer-pedido/{mode}', { state: { addressId, timing, age } })
+//   El campo `address` (texto libre anterior) se sustituye por `addressId` (UUID).
+//   En modo recoger, addressId = null.
+
+import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams, Navigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.jsx'
+import AddressManager from '../components/AddressManager.jsx'
+import { formatAddress } from '../services/addressService.js'
+
 export default function PedidoDatos() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const mode = searchParams.get('mode') === 'domicilio' ? 'domicilio' : 'recoger'
 
-  const [address, setAddress] = useState('')
+  const { isAuthenticated, loading: authLoading } = useAuth()
+
+  // For domicilio: the selected address UUID and its formatted label
+  const [selectedAddressId, setSelectedAddressId] = useState(null)
+  const [selectedAddressLabel, setSelectedAddressLabel] = useState('')
+
   const [timing, setTiming] = useState('') // 'programar' | 'asap'
   const [age, setAge] = useState('') // 'yes' | 'no'
-  const [geoStatus, setGeoStatus] = useState('idle') // idle | locating | done | error
   const [errors, setErrors] = useState({})
 
   const whenQuestion =
     mode === 'domicilio' ? '¿Cuándo quieres recibirlo?' : '¿Cuándo quieres recogerlo?'
 
-  function useMyLocation() {
-    if (!('geolocation' in navigator)) {
-      setGeoStatus('error')
-      return
-    }
-    setGeoStatus('locating')
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords
-        setAddress(`Ubicación actual (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`)
-        setGeoStatus('done')
-      },
-      () => setGeoStatus('error'),
+  // While auth is resolving, show nothing to avoid flash
+  if (authLoading) {
+    return (
+      <div className="protected-route-loading" role="status" aria-live="polite">
+        <span className="sr-only">Verificando sesión…</span>
+        <div className="protected-route-spinner" aria-hidden="true" />
+      </div>
+    )
+  }
+
+  // For domicilio: require authentication.
+  // Redirect to login preserving the current path so the user can come back.
+  if (mode === 'domicilio' && !isAuthenticated) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: `/hacer-pedido/datos?mode=domicilio` }}
+      />
     )
   }
 
   function handleSubmit(e) {
     e.preventDefault()
     const next = {}
-    if (!address.trim()) next.address = 'Indica una dirección'
+    if (mode === 'domicilio' && !selectedAddressId) {
+      next.address = 'Selecciona o añade una dirección de entrega antes de continuar.'
+    }
     if (!timing) next.timing = 'Elige cuándo lo quieres'
     if (!age) next.age = 'Indícanos tu edad'
     setErrors(next)
     if (Object.keys(next).length > 0) return
 
-    // Siguiente paso: el catálogo de productos (según el modo elegido).
-    navigate(`/hacer-pedido/${mode}`, { state: { address, timing, age } })
+    // Siguiente paso: el catálogo de productos.
+    // Se pasa addressId (uuid | null) en lugar del texto libre anterior.
+    // También se pasa addressLabel para que el CheckoutBar muestre la dirección.
+    navigate(`/hacer-pedido/${mode}`, {
+      state: {
+        addressId: mode === 'domicilio' ? selectedAddressId : null,
+        addressLabel: mode === 'domicilio' ? selectedAddressLabel : null,
+        timing,
+        age,
+      },
+    })
   }
 
   return (
     <section className="datos">
       <h1 className="datos-title">Introduce tus datos</h1>
-      <p className="datos-sub">Escribe tu dirección</p>
+      <p className="datos-sub">
+        {mode === 'domicilio'
+          ? 'Elige o añade la dirección de entrega'
+          : 'Dinos cuándo quieres pasar a recoger tu pedido'}
+      </p>
 
       <form className="datos-form" onSubmit={handleSubmit} noValidate>
-        <div className="address-row">
-          <div className="address-field">
-            <PinIcon />
-            <input
-              type="text"
-              placeholder="Calle, número y ciudad"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              aria-label="Dirección"
+
+        {/* ── Dirección (solo para domicilio) ──────────────────────────────── */}
+        {mode === 'domicilio' && (
+          <div className="datos-address-section">
+            <AddressManager
+              selectedId={selectedAddressId}
+              onSelect={(id) => {
+                setSelectedAddressId(id)
+                // Clear the address error when the user selects one
+                if (id && errors.address) {
+                  setErrors((prev) => { const n = { ...prev }; delete n.address; return n })
+                }
+              }}
+              onSelectAddress={(addr) => {
+                // Keep a formatted label so it can be shown in the checkout bar
+                setSelectedAddressLabel(
+                  (addr.label ? addr.label + ' — ' : '') + formatAddress(addr)
+                )
+              }}
+              showHeading={false}
             />
+            {errors.address && (
+              <p className="field-error" role="alert">{errors.address}</p>
+            )}
           </div>
-          <button
-            type="button"
-            className="btn btn-outline btn-location"
-            onClick={useMyLocation}
-            disabled={geoStatus === 'locating'}
-          >
-            {geoStatus === 'locating' ? 'Localizando…' : 'Usar mi ubicación'}
-          </button>
-        </div>
-        {errors.address && <p className="field-error">{errors.address}</p>}
-        {geoStatus === 'error' && (
-          <p className="field-error">No hemos podido obtener tu ubicación.</p>
         )}
 
         <div className="datos-cols">
@@ -102,7 +149,9 @@ export default function PedidoDatos() {
               <span className="check-label">Lo antes posible</span>
             </label>
             <p className="check-hint">Aproximadamente a las {estimatedReadyTime()}</p>
-            {errors.timing && <p className="field-error">{errors.timing}</p>}
+            {errors.timing && (
+              <p className="field-error" role="alert">{errors.timing}</p>
+            )}
           </fieldset>
 
           {/* Edad */}
@@ -128,11 +177,27 @@ export default function PedidoDatos() {
               <span className="check-box" aria-hidden />
               <span className="check-label">No</span>
             </label>
-            {errors.age && <p className="field-error">{errors.age}</p>}
+            {errors.age && (
+              <p className="field-error" role="alert">{errors.age}</p>
+            )}
           </fieldset>
         </div>
 
-        <button type="submit" className="btn-continue">Continuar</button>
+        {/* Blocked state hint */}
+        {mode === 'domicilio' && !selectedAddressId && (
+          <p className="datos-address-hint" role="status">
+            Selecciona o añade una dirección de entrega para poder continuar.
+          </p>
+        )}
+
+        <button
+          type="submit"
+          className="btn-continue"
+          disabled={mode === 'domicilio' && !selectedAddressId}
+          aria-disabled={mode === 'domicilio' && !selectedAddressId}
+        >
+          Continuar
+        </button>
       </form>
     </section>
   )
@@ -144,17 +209,4 @@ function estimatedReadyTime() {
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
   return `${hh}.${mm}h`
-}
-
-function PinIcon() {
-  return (
-    <svg className="pin-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 21s7-5.686 7-11a7 7 0 1 0-14 0c0 5.314 7 11 7 11Z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  )
 }
