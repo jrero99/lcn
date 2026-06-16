@@ -1554,6 +1554,59 @@ img.media-box {
   margin-top: 2.2rem;
 }
 
+/* Confirm-submit form wrapper */
+.confirm-submit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+/* Contact phone field inside confirm-submit-form */
+.confirm-phone-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: left;
+}
+
+.confirm-phone-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.confirm-phone-input {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border: 1.5px solid #e3ddd3;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  background: #fff;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+.confirm-phone-input:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+.confirm-phone-input--error {
+  border-color: var(--brand);
+}
+.confirm-phone-input:disabled {
+  background: #f5f5f5;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.confirm-phone-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0;
+}
+
 /* ---------- CheckoutBar: expandable cart panel ---------- */
 
 /* Wrapper that stacks the panel above the fixed bar */
