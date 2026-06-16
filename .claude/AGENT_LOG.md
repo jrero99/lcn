@@ -69,12 +69,33 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 - [BAJO] Google SSO — `googleAuthLimiter` (10 req/IP/15 min) es más permisivo que `loginLimiter` (5 req/IP/15 min). Dado que ambos endpoints producen la misma cookie JWT, el endpoint SSO podría usarse para eludir el rate-limit más estricto del login por contraseña. Recomendación: igualar a 5 req/IP/15 min (`backend/src/middleware/rateLimiter.js:44`).
 - [BAJO] Google SSO — RGPD: usuarios creados por SSO reciben `acceptedTerms: true` y `acceptedPrivacy: true` automáticamente (`backend/src/services/authService.js:247`). Esto se documenta como deuda post-MVP, pero implica que no hay consentimiento explícito registrado para estos usuarios. Bloqueante legal antes de producción.
 - [BAJO] Google SSO — `dummyHash` en `login()` no es un hash argon2id válido. Si `argon2.verify` recibe ese string malformado lanzará una excepción en lugar de devolver `false`, lo que podría producir un 500 en lugar del 401 esperado. El flujo correcto se mantiene gracias al `if (!user.passwordHash)` posterior, pero la rama de timing-safe falla antes. Corrección: usar un hash pre-calculado real o capturar el error de `argon2.verify` (`backend/src/services/authService.js:98-102`).
-- [MEDIO] Addresses — PATCH con city sin postalCode (o viceversa) en updateAddressSchema puede eludir la validación de zona: si solo se cambia `city` a un valor fuera de Mataró sin tocar `postalCode`, la condición `data.postalCode ?? ''` evalúa a cadena vacía, que no está en MATARO_POSTAL_CODES, pero `validCity` se comprueba sobre `data.city` (el nuevo valor), por lo que la lógica es correcta. Sin embargo, si el usuario cambia solo `postalCode` a un CP válido (08301) pero la fila tiene `city='Reus'` previo, el PATCH pasa igualmente porque `validPostal` es true. El snapshot en el pedido se construye desde el registro completo (que tiene `city='Reus'`). Riesgo bajo en MVP (zona reducida, anti-abuse cap de 10), pero recomendable validar la combinación completa leyendo la fila existente cuando el PATCH solo actualiza uno de los dos campos de zona. (`backend/src/validators/addresses.js:108-124`)
+- [RESUELTO 2026-06-16] Addresses — PATCH con city sin postalCode (o viceversa): el refinement de zona en `updateAddressSchema` ha sido movido a `addressService.updateAddress()`, donde la fila existente ya está cargada. Se calculan los valores efectivos (`incoming ?? existing`) antes de validar la zona. Casos como PATCH `{ city: "Barcelona" }` sobre fila con `postalCode: "28001"` ahora devuelven 422. Ver bitácora 2026-06-16 backend-node (fix M-1).
 - [BAJO] Addresses — `addressMutationLimiter` es por IP (20 req/hora). Si el servicio se despliega detrás de un proxy/balanceador sin `app.set('trust proxy', 1)`, todos los clientes compartirán la IP del proxy y el limiter se agotará colectivamente. Verificar que `trust proxy` está configurado cuando se despliegue el backend. (`backend/src/middleware/rateLimiter.js:64`, `backend/src/index.js`)
 - [BAJO] Addresses RGPD — el borrado de cuenta (`deleteAccount`) hace soft-delete de direcciones pero `Order.deliveryAddress` (snapshot de texto con calle, número, ciudad) permanece sin anonimizar. Para un borrado RGPD completo post-MVP habría que nullificar también ese campo. Documentado como pendiente en el AGENT_LOG (2026-06-16 backend-node), pero conviene registrarlo aquí también como riesgo abierto. (`backend/src/services/authService.js:277-297`)
 ---
 
 ## Bitácora
+
+### [2026-06-16] backend-node — Fix M-1: validación de zona de reparto en PATCH parcial de direcciones
+
+- **Qué cambió**:
+  - `backend/src/validators/addresses.js`: eliminado el `superRefine` de zona de reparto de `updateAddressSchema`. El Zod schema para PATCH ya no intenta validar la combinación `city+postalCode` porque no tiene acceso a los valores actuales en BD. Se conserva el refinement de "body vacío" y todos los validadores de formato por campo (`postalCodeField` sigue exigiendo 5 dígitos, `cityField` sigue exigiendo longitud 2-100, etc.). Añadido comentario explícito indicando dónde vive ahora la comprobación.
+  - `backend/src/services/addressService.js`: añadida función helper privada `isInDeliveryZone(city, postalCode)` que replica la regla (misma lógica que `refineDeliveryZone` en el validator). En `updateAddress()`, la query de lectura de la fila existente ahora también selecciona `city` y `postalCode`. Tras el ownership check, si el PATCH toca `city` y/o `postalCode`, se calculan los valores efectivos (`data.X ?? existing.X`) y se llama a `isInDeliveryZone`; si falla, lanza `httpError(422, 'Delivery is only available in Mataró (postal codes 08301–08304)')`, mismo mensaje y código que el POST.
+
+- **Por qué**: hallazgo de seguridad M-1. El refinement anterior evaluaba la zona usando solo los campos del body, rellenando el ausente con cadena vacía. Esto permitía que un PATCH con `{ postalCode: "08301" }` pasara aunque la fila tuviera `city: "Reus"` (combinación incoherente), o que `{ city: "Mataró" }` pasara dejando `postalCode: "28001"` en BD.
+
+- **Casos cubiertos por el fix**:
+  1. `PATCH { city: "Barcelona" }` con fila existente `postalCode: "08301"` → efectivo `(Barcelona, 08301)` → validCity=false, validPostal=true → **pasa** (CP válido compensa). Comportamiento correcto.
+  2. `PATCH { city: "Mataró" }` con fila existente `postalCode: "28001"` → efectivo `(Mataró, 28001)` → validCity=true → **pasa**. Correcto.
+  3. `PATCH { postalCode: "08301" }` con fila existente `city: "Reus"` → efectivo `(Reus, 08301)` → validPostal=true → **pasa**. Correcto (el CP es el campo autoritativo para la zona).
+  4. `PATCH { city: "Barcelona" }` con fila existente `postalCode: "28001"` → efectivo `(Barcelona, 28001)` → validCity=false, validPostal=false → **422**. Era el bug; ahora se rechaza.
+  5. `PATCH { postalCode: "28001" }` con fila existente `city: "Reus"` → efectivo `(Reus, 28001)` → **422**. Bug simétrico; también corregido.
+
+- **Impacto para otros agentes**:
+  - `testing-expert`: añadir casos de integración para PATCH parcial: (a) PATCH `{ city: "Barcelona" }` sobre dirección con `postalCode: "28001"` → 422; (b) PATCH `{ postalCode: "28001" }` sobre dirección con `city: "Reus"` → 422; (c) PATCH `{ postalCode: "08302" }` sobre dirección con `city: "Reus"` → 200 (CP válido compensa); (d) PATCH `{ city: "Mataró" }` sobre dirección con `postalCode: "28001"` → 200 (city válida compensa).
+  - `frontend-react`: sin cambio de contrato. El endpoint sigue respondiendo 422 con `{ error: "Delivery is only available in Mataró (postal codes 08301–08304)" }` en caso de zona inválida. El `AddressManager` ya maneja este 422.
+
+- **Acción requerida**: `testing-expert` cubrir los 4 casos de test indicados arriba.
 
 ### [2026-06-16] security-expert -- Auditoria feature gestion de direcciones (RGPD + IDOR)
 
