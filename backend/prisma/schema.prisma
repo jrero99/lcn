@@ -79,6 +79,19 @@ enum BlacklistType {
 }
 
 // =============================================================================
+// ENUMS (auth provider)
+// =============================================================================
+
+/// How the user authenticates.
+/// PASSWORD = email + password (default).
+/// GOOGLE   = Google SSO via ID token verification (no local password).
+/// A user can have both if they first registered with password and later link Google.
+enum AuthProvider {
+  PASSWORD
+  GOOGLE
+}
+
+// =============================================================================
 // USUARIOS Y SESIONES
 // =============================================================================
 
@@ -89,7 +102,8 @@ model User {
   /// Requiere: CREATE EXTENSION IF NOT EXISTS citext;
   email        String   @unique @db.Citext
   /// bcrypt cost>=12 o argon2id. NUNCA en texto plano ni en logs.
-  passwordHash String   @map("password_hash")
+  /// Nullable: users who sign up via Google SSO have no local password.
+  passwordHash String?  @map("password_hash")
   firstName    String   @map("first_name")
   lastName     String   @map("last_name")
   /// Normalizado a E.164 con libphonenumber-js. Solo telefonos validos en Espanya.
@@ -97,6 +111,18 @@ model User {
   /// true tras completar el flujo OTP.
   /// Campo preparado para uso futuro — OTP SMS pendiente de proveedor.
   phoneVerified Boolean @default(false) @map("phone_verified")
+
+  /// Google SSO: the `sub` claim from the verified Google ID token.
+  /// Unique so that duplicate SSO sign-ins are impossible.
+  /// Null for users who registered via email+password and have never linked Google.
+  googleId String? @unique @map("google_id")
+
+  /// How this user authenticated when they first created their account.
+  /// GOOGLE users have googleId set and passwordHash null.
+  /// PASSWORD users (default) have passwordHash set.
+  /// Hybrid: if a PASSWORD user later links Google, provider stays PASSWORD
+  /// but googleId is populated. This lets them log in via either method.
+  provider AuthProvider @default(PASSWORD)
 
   role Role @default(CUSTOMER)
 
@@ -120,10 +146,12 @@ model User {
   // Relaciones
   refreshTokens      RefreshToken[]
   orders             Order[]
+  addresses          Address[]
   orderStatusChanges OrderStatusHistory[] @relation("ChangedByUser")
 
   @@index([phone])
   @@index([deletedAt])
+  @@index([googleId])
   @@map("users")
 }
 
@@ -153,6 +181,70 @@ model RefreshToken {
   @@index([userId, revokedAt])
   @@index([expiresAt])
   @@map("refresh_tokens")
+}
+
+// =============================================================================
+// DIRECCIONES DE ENTREGA
+// =============================================================================
+
+/// Direcciones de entrega guardadas por el usuario en su cuenta.
+/// Cada usuario puede tener varias direcciones (casa, trabajo, etc.).
+///
+/// SOFT-DELETE: usamos deletedAt en lugar de borrado fisico porque las
+/// Order existentes guardan un FK blando (addressId) a esta tabla.
+/// Borrar fisicamente romperia la trazabilidad de pedidos anteriores.
+/// El endpoint DELETE marca deletedAt; las queries del usuario filtran
+/// por deletedAt IS NULL. Los pedidos pueden seguir referenciando el
+/// registro aunque este "borrado" (el snapshot en Order.deliveryAddress
+/// ya guarda la direccion en texto plano, por lo que es legible sin Join).
+///
+/// VALIDACION DE ZONA DE REPARTO: la regla "debe ser Mataro o CP 08301-08304"
+/// se aplica en el servidor (validator/addresses.js), no como constraint de BD.
+/// Esto permite mensajes de error claros en castellano/catalan.
+model Address {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  /// Etiqueta opcional para identificar la direccion: "Casa", "Trabajo", "Padres".
+  /// Max 50 caracteres. Si no se especifica, el front puede mostrar la calle.
+  label String? @db.VarChar(50)
+
+  /// Nombre de la calle o via. Ej: "Carrer de Barcelona", "Avinguda del Maresme".
+  street String @db.VarChar(200)
+
+  /// Numero de portal. Ej: "12", "12B".
+  number String @db.VarChar(10)
+
+  /// Piso y puerta. Opcional. Ej: "3r 2a", "Bajos", "Escalera A Piso 2".
+  floorDoor String? @map("floor_door") @db.VarChar(50)
+
+  /// Codigo postal de 5 digitos. Solo 08301-08304 aceptados (zona de reparto).
+  postalCode String @map("postal_code") @db.Char(5)
+
+  /// Ciudad. Siempre "Mataró" para los pedidos de entrega a domicilio.
+  /// Guardamos el valor exacto que escribe el usuario (tras normalizacion).
+  city String @db.VarChar(100)
+
+  /// Instrucciones adicionales de acceso: "Portero automatico 2B", "Sin ascensor",
+  /// "Dejar en conserjeria". Opcional. Max 300 caracteres.
+  notes String? @db.VarChar(300)
+
+  /// Soft delete. Cuando no es null, la direccion no aparece en el listado
+  /// del usuario pero sigue referenciable desde pedidos historicos.
+  deletedAt DateTime? @map("deleted_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user   User    @relation(fields: [userId], references: [id])
+  orders Order[]
+
+  /// Indice principal: el caso de uso mas frecuente es listar todas las
+  /// direcciones activas de un usuario.
+  @@index([userId])
+  /// Indice para filtrar soft-deletes de forma eficiente.
+  @@index([userId, deletedAt])
+  @@map("addresses")
 }
 
 // =============================================================================
@@ -303,7 +395,17 @@ model Order {
   mode OrderMode
 
   /// Solo si mode=DELIVERY. Debe incluir "Mataro" o CP 08301-08304 (validacion en servidor).
+  /// SNAPSHOT inmutable de la direccion en el momento del pedido. Sigue el patron de
+  /// OrderLine.productNameSnapshot: se copia al crear el pedido y no se actualiza nunca.
+  /// Formato: "<street> <number>[, <floorDoor>], <postalCode> <city>[ — <notes>]"
   deliveryAddress String? @map("delivery_address")
+
+  /// FK blando a la direccion de origen. Opcional para trazabilidad.
+  /// Sigue el patron de OrderLine.productId: si la Address es borrada (soft-delete),
+  /// el pedido historico sigue siendo legible via deliveryAddress (snapshot).
+  /// NULL para pedidos PICKUP o pedidos creados antes de implementar Address.
+  addressId String? @map("address_id") @db.Uuid
+  address   Address? @relation(fields: [addressId], references: [id])
 
   timing OrderTiming
 
@@ -343,6 +445,7 @@ model Order {
   @@index([status])
   @@index([contactPhone, createdAt])
   @@index([deliveryAddress, createdAt])
+  @@index([addressId])
   @@index([createdAt])
   @@map("orders")
 }

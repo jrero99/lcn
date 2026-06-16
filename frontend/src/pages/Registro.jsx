@@ -2,16 +2,27 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Modal from '../components/Modal.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
+import { registerRequest } from '../services/authService.js'
+import GoogleSignInButton from '../components/GoogleSignInButton.jsx'
 
 // Registration page — /registro
-// Auth is mock only. Integration point: TODO POST /api/auth/register
+// Wired to POST /api/auth/register. On success the backend sets the httpOnly
+// session cookie (auto-login); we hydrate React state via login() and show the
+// welcome modal before going home.
+//
+// Google SSO: uses the same GoogleSignInButton as Login.jsx. The backend
+// performs find-or-create, so it works for both new and returning users.
+//
+// SECURITY: passwords are sent once to the server and never logged or stored.
 export default function Registro() {
   const navigate = useNavigate()
   const { login } = useAuth()
   const [nombre, setNombre] = useState('')
   const [apellidos, setApellidos] = useState('')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [telefono, setTelefono] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   // Checkboxes
   const [mayoria, setMayoria] = useState(false)        // optional
@@ -20,6 +31,7 @@ export default function Registro() {
   const [comerciales, setComeriales] = useState(false)  // optional
 
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
   const [welcomeOpen, setWelcomeOpen] = useState(false)
 
   function validate() {
@@ -31,6 +43,11 @@ export default function Registro() {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       next.email = 'El correo no tiene un formato válido'
     }
+    if (!password) {
+      next.password = 'Introduce una contraseña'
+    } else if (password.length < 8) {
+      next.password = 'La contraseña debe tener al menos 8 caracteres'
+    }
     if (!telefono.trim()) {
       next.telefono = 'Introduce tu número de teléfono'
     } else if (!/^[+\d\s\-()]{7,}$/.test(telefono.trim())) {
@@ -41,31 +58,54 @@ export default function Registro() {
     return next
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
+    setServerError('')
+
     const errs = validate()
     setErrors(errs)
     if (Object.keys(errs).length > 0) return
 
-    // TODO: replace mock with POST /api/auth/register
-    // Body: { nombre, apellidos, email, telefono, aceptaCondiciones: true,
-    //         aceptaPrivacidad: true, aceptaComunicaciones: comerciales }
-    // On success: the real flow would navigate to /login (or auto-login).
-    // NEVER log personal data or passwords.
-    console.info('[Registro] Mock submit OK')
+    setSubmitting(true)
+    try {
+      // POST /api/auth/register — sets the httpOnly cookie (auto-login) on success.
+      // NEVER log personal data or passwords.
+      await registerRequest({
+        name: nombre.trim(),
+        apellidos: apellidos.trim(),
+        email: email.trim(),
+        password,
+        phone: telefono.trim(),
+        consentConditions: condiciones,
+        consentPrivacy: privacidad,
+        consentMarketing: comerciales,
+      })
 
-    // Mark the user as authenticated after mock registration (mock only).
-    // In the real flow, registration usually redirects to login rather than
-    // auto-logging in — adjust when backend exists (coordinate with security-expert).
-    login({ email, name: nombre })
+      // The server already issued the session cookie; hydrate React state from
+      // GET /api/auth/me (single source of truth) before showing the welcome.
+      await login()
 
-    setWelcomeOpen(true)
+      setWelcomeOpen(true)
+    } catch (err) {
+      // Show the server message (e.g. "El email ya está registrado").
+      setServerError(err.message || 'No se ha podido crear la cuenta. Inténtalo de nuevo.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   function handleWelcomeClose() {
     setWelcomeOpen(false)
-    // Navigate to login after closing the welcome modal
-    navigate('/login')
+    // The user is already logged in (cookie set on register) — go home.
+    navigate('/', { replace: true })
+  }
+
+  // Called by GoogleSignInButton after a successful Google sign-in/sign-up.
+  // The backend has already set the session cookie; we hydrate React state
+  // and go home. No welcome modal needed — the backend did find-or-create.
+  async function handleGoogleSuccess() {
+    await login()
+    navigate('/', { replace: true })
   }
 
   function clearError(field) {
@@ -83,6 +123,24 @@ export default function Registro() {
       <div className="auth-inner">
         <h1 className="datos-title">Regístrate</h1>
         <p className="datos-sub">Introduce tu correo electrónico</p>
+
+        {/* Server-level error (email/password or Google SSO) */}
+        {serverError && (
+          <p className="field-error" role="alert" style={{ marginBottom: '1rem' }}>
+            {serverError}
+          </p>
+        )}
+
+        {/* Google SSO — shown when VITE_GOOGLE_CLIENT_ID is configured */}
+        <GoogleSignInButton
+          onSuccess={handleGoogleSuccess}
+          onError={setServerError}
+        />
+
+        {/* "o" separator between Google button and email/password form */}
+        <div className="auth-sso-separator" role="separator" aria-label="o">
+          <span>o</span>
+        </div>
 
         <form className="datos-form auth-form" onSubmit={handleSubmit} noValidate>
           {/* 2-column grid for personal data fields */}
@@ -175,6 +233,29 @@ export default function Registro() {
                 </p>
               )}
             </div>
+
+            {/* Password */}
+            <div>
+              <label htmlFor="reg-password" className="sr-only">Contraseña</label>
+              <div className="address-field" aria-describedby={errors.password ? 'reg-password-error' : undefined}>
+                <LockIcon />
+                <input
+                  id="reg-password"
+                  type="password"
+                  placeholder="Contraseña (mín. 8 caracteres)"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); clearError('password') }}
+                  aria-describedby={errors.password ? 'reg-password-error' : undefined}
+                  disabled={submitting}
+                />
+              </div>
+              {errors.password && (
+                <p id="reg-password-error" className="field-error" role="alert">
+                  {errors.password}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Checkboxes */}
@@ -251,7 +332,9 @@ export default function Registro() {
             </label>
           </fieldset>
 
-          <button type="submit" className="btn-continue">Crea tu cuenta ahora</button>
+          <button type="submit" className="btn-continue" disabled={submitting}>
+            {submitting ? 'Creando cuenta…' : 'Crea tu cuenta ahora'}
+          </button>
         </form>
 
         {/* Divider + login CTA */}
@@ -262,12 +345,12 @@ export default function Registro() {
         </Link>
       </div>
 
-      {/* Welcome modal — shown on successful mock registration */}
+      {/* Welcome modal — shown after a successful registration (user is logged in) */}
       <Modal
         isOpen={welcomeOpen}
         onClose={handleWelcomeClose}
         title="¡Bienvenido/a!"
-        message="Tu cuenta se ha creado correctamente. Ya puedes iniciar sesión y disfrutar de todos nuestros servicios."
+        message="Tu cuenta se ha creado correctamente y ya has iniciado sesión. ¡Disfruta de todos nuestros servicios!"
       />
     </section>
   )
@@ -330,6 +413,26 @@ function PhoneIcon() {
       aria-hidden="true"
     >
       <path d="M6.6 10.8a15.04 15.04 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.58.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C9.61 21 3 14.39 3 6.25A1 1 0 0 1 4 5.25h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1.02L6.6 10.8z" />
+    </svg>
+  )
+}
+
+function LockIcon() {
+  return (
+    <svg
+      className="pin-icon"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
     </svg>
   )
 }

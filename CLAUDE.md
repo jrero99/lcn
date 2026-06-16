@@ -138,17 +138,29 @@ El `knowledge-coordinator` lee ese registro y mantiene al resto al día.
 
 ## 7. Estado actual
 
+_Última actualización: 2026-06-16_
+
 **Frontend React: en curso.** Páginas implementadas y construidas:
 - `Home` (landing): hero, "Sobre nosotros", carta (polaroids), marquee, local (foto real `local.png`), empleo.
-- Flujo de pedido completo: `HacerPedido` → `PedidoDatos` → `OrderCatalog` (13 categorías, mock data, alérgenos, `ProductModal` ficha de producto) → `OrderConfirmation` (abre `Modal` genérico con resumen + nota pago al recibir).
-- Página `Reservas` (paso 1): formulario fecha/hora/zona/personas; datos mock; punto de integración con `POST /api/reservations` marcado con TODO.
-- Componente `Modal` genérico reutilizable (`frontend/src/components/Modal.jsx`): props `isOpen`, `onClose`, `title`, `message`, `children`. Preparado para recibir `confirmationTitle`/`confirmationMessage` desde `POST /api/orders` como props opt-in (con defaults si ausentes). **Todos los diálogos/confirmaciones futuros deben reusar este componente.**
+- Flujo de pedido completo (requiere login en ambos modos): `HacerPedido` → `PedidoDatos` (guarda de sesión; en modo domicilio monta `<AddressManager>` para seleccionar/crear dirección) → `OrderCatalog` (catálogo desde `GET /api/catalog`, 13 categorías, alérgenos, `ProductModal`, carrito con personalizaciones por línea, panel expandible) → `OrderConfirmation` (guarda de sesión + guarda de state válido; abre `Modal` genérico con resumen + nota pago al recibir).
+- `PedidoDatos` propaga `{ addressId, addressLabel, timing, age }` al navegar. `CheckoutBar` muestra la dirección real del usuario. `OrderConfirmation` lee `addressId` listo para enviarlo en `POST /api/orders`.
+- Componente `AddressManager` (`frontend/src/components/AddressManager.jsx`): CRUD completo de direcciones (lista/alta/edición/borrado con modal de confirmación). Validación de zona Mataró/CP 08301–08304 en cliente. Listo para reusar en la futura página "Mis direcciones" de la cuenta de usuario.
+- Servicio `addressService.js`: `getAddresses`, `createAddress`, `updateAddress`, `deleteAddress`, `formatAddress`. Gestión de 401 via `sessionEvents.js` (expira la sesión en `AuthContext` automáticamente).
+- Páginas `Login` y `Registro` implementadas y conectadas al backend real (email/contraseña + Google SSO). Header reactivo al estado de sesión (saludo + "Cerrar sesión" / enlace "Panel" para admin).
+- Página `Reservas`: formulario fecha/hora/zona/personas con horarios reales (`frontend/src/data/hours.js`); punto de integración con `POST /api/reservations` marcado con TODO.
+- Componente `Modal` genérico reutilizable (`frontend/src/components/Modal.jsx`). **Todos los diálogos/confirmaciones futuros deben reusar este componente.**
 - Diseño responsive completado: breakpoints 860px / 520px / 400px; menú hamburguesa accesible; targets táctiles 44px; sin overflow a 360px.
 - Deploy: GitHub Pages https://jrero99.github.io/lcn/ vía `.github/workflows/deploy.yml`. Vite `base: '/lcn/'` en CI; React Router con `basename`. `dist/404.html` como fallback SPA.
 
-**Pendiente de construir:**
-- Páginas Login / Registro (enlace header apunta a `#` con TODO).
+**Pendiente de construir (frontend):**
+- Página "Mis direcciones" (cuenta de usuario): montar `<AddressManager>` en standalone dentro de una página de cuenta. El componente ya existe y está listo; solo falta la página contenedora y su ruta.
+- Conectar `Reservas.jsx` al endpoint real `POST /api/reservations` (TODO marcado en el código).
+- Conectar `OrderConfirmation` al endpoint real `POST /api/orders` enviando `addressId` cuando `mode=domicilio`.
 - Imágenes reales: hero y polaroids de la carta (3 fotos). La foto del local ya está integrada (`local.png`; pendiente optimización a `.webp`, ~1 MB).
 - Fuente Salo auto-alojada en `frontend/src/assets/fonts/` (`@font-face` comentado en `index.css`).
+- Configurar `VITE_GOOGLE_CLIENT_ID` en `.env.local` y en los secrets de GitHub Actions para el deploy.
 
-**Backend Node/Express + Prisma:** aún sin andamiar. Catálogo y carrito usan mock data en cliente. Contratos pendientes: `GET /api/catalog` (debe incluir campo `options[]`), `POST /api/orders` (puede devolver `confirmationTitle?`/`confirmationMessage?` opcionales para el Modal), `POST /api/reservations`. Ver tabla completa en `.claude/AGENT_LOG.md` sección "Estado consolidado".
+**Backend Node/Express + Prisma:** andamiado y en desarrollo activo.
+- Implementados: `GET /api/catalog`, auth completa (registro/login/logout/me/Google SSO), `POST /api/reservations`, CRUD completo `GET|POST|PATCH|DELETE /api/addresses`.
+- Pendiente de conectar desde el frontend: `POST /api/orders` (contrato actualizado: usa `addressId` en lugar de objeto `address` inline para domicilio).
+- Ver tabla completa de contratos y modelo de datos en `.claude/AGENT_LOG.md` sección "Estado consolidado".

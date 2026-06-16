@@ -24,21 +24,43 @@ arquitectura, cambias el modelo de datos, o detectas un riesgo de seguridad/QA.
 ---
 
 ## Estado consolidado (mantiene `knowledge-coordinator`)
-_Última consolidación: 2026-06-10_
+_Última consolidación: 2026-06-16_
 
 ### Contratos de API vigentes
-Ningún endpoint implementado aún. Contratos pendientes de definir cuando se andamie el backend:
 
-| Método | Ruta | Body (request) | Respuesta esperada | Estado |
-|--------|------|----------------|--------------------|--------|
-| GET | `/api/catalog` | — | `[{ id, name, description, price, allergens[], options[] }]` | Pendiente. Forma exacta documentada en `catalogMockData.js`. |
-| POST | `/api/orders` | `{ items[], total, mode, address?, paymentMethod }` | `{ orderId, confirmationTitle?, confirmationMessage? }` | Pendiente. `confirmationTitle`/`confirmationMessage` son opcionales; el front los pasa como props al `Modal` con defaults si ausentes. |
-| POST | `/api/reservations` | `{ date, time, zone, guests }` | `{ availableSlots[] }` | Pendiente. Punto de integración marcado con `// TODO` en `Reservas.jsx`. |
+| Método | Ruta | Auth | Body (request) | Respuesta | Estado |
+|--------|------|------|----------------|-----------|--------|
+| GET | `/api/catalog` | no | — | `[{ id, name, description, price, allergens[], ingredients[], options[] }]` | Implementado. `ingredients[]` expuesto desde 2026-06-16. |
+| POST | `/api/auth/register` | no | `{ name, apellidos, email, password, phone, consentConditions, consentPrivacy, consentMarketing }` | `201 { user }` + cookie JWT httpOnly | Implementado. |
+| POST | `/api/auth/login` | no | `{ email, password }` | `200 { user }` + cookie JWT httpOnly | Implementado. |
+| POST | `/api/auth/google` | no | `{ credential: "<google_id_token>" }` | `200 { user }` + cookie JWT httpOnly | Implementado. 503 si `GOOGLE_CLIENT_ID` no configurado. |
+| GET | `/api/auth/me` | cookie | — | `200 { user }` | Implementado. |
+| POST | `/api/auth/logout` | cookie | — | `200` + limpia cookie | Implementado. |
+| GET | `/api/addresses` | cookie | — | `200 { addresses: Address[] }` | Implementado (2026-06-16). |
+| POST | `/api/addresses` | cookie | `{ label?, street, number, floorDoor?, postalCode, city, notes? }` | `201 { address }` · 422 zona fuera de Mataró/08301–08304 · 422 si ya tiene 10 · 429 rate limit | Implementado (2026-06-16). |
+| PATCH | `/api/addresses/:id` | cookie | cualquier subconjunto de los campos de POST (min 1) | `200 { address }` · 404 si no existe o es de otro usuario · 422 zona | Implementado (2026-06-16). |
+| DELETE | `/api/addresses/:id` | cookie | — | `204` · 404 si no existe o es de otro usuario | Implementado (2026-06-16). |
+| POST | `/api/orders` | cookie | `{ items[], total, mode, addressId?, paymentMethod }` | `{ orderId, confirmationTitle?, confirmationMessage? }` | Pendiente de integrar en frontend. **BREAKING (2026-06-16)**: `mode=DELIVERY` exige `addressId` (UUID de dirección del usuario); el campo `address` inline ya no se acepta. `confirmationTitle`/`confirmationMessage` opcionales para el `Modal`. |
+| POST | `/api/reservations` | no | `{ date, time, zone, guests }` | `200 { availableSlots: [] }` · 422 día cerrado/fuera de horario/pasado · 403 honeypot · 429 | Implementado (2026-06-16). Punto de integración en `Reservas.jsx` marcado con TODO. |
+
+**Forma del objeto `Address` en respuesta:**
+```json
+{ "id": "uuid", "label": "Casa", "street": "Carrer de Barcelona", "number": "12",
+  "floorDoor": "3r 2a", "postalCode": "08302", "city": "Mataró",
+  "notes": "Portero 2B", "createdAt": "2026-06-16T10:00:00.000Z" }
+```
+
+**Nota sobre `POST /api/orders` y direcciones (BREAKING 2026-06-16):**
+El frontend debe enviar `addressId` (UUID) en lugar del objeto `address` inline cuando `mode=DELIVERY`. El servidor verifica el ownership del `addressId` y copia el snapshot a `Order.deliveryAddress`. Flujo: crear/seleccionar dirección con `/api/addresses` → enviar UUID en el pedido.
 
 ### Modelo de datos vigente
-_(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
-- El pedido debe incluir campo `paymentMethod` (CARD / CASH) — pago al recibir, sin cobro online.
-- Catálogo: campo `options` por producto (grupos de opciones con nombre e items seleccionables). Ver `catalogMockData.js` para estructura exacta.
+- Stack: PostgreSQL + Prisma.
+- **User**: `id, name, email, passwordHash? (nullable para Google-only), googleId?, provider (PASSWORD|GOOGLE), role (CUSTOMER|ADMIN), phone, acceptedTerms, acceptedPrivacy, acceptedMarketing, deletedAt? (soft-delete)`.
+- **Address** (tabla `addresses`, N:1 con User): `id, userId, label?, street, number, floorDoor?, postalCode CHAR(5), city, notes?, deletedAt? (soft-delete), createdAt, updatedAt`. Máx 10 por usuario. Zona restringida a Mataró (CP 08301–08304). Soft-delete justificado: pedidos históricos conservan FK `addressId`.
+- **Order**: `id, userId, items, total, mode (DELIVERY|PICKUP), deliveryAddress? (snapshot texto), addressId? FK blando → Address ON DELETE SET NULL, paymentMethod (CARD|CASH), status, createdAt`.
+- **OrderLine**: `productId? (nullable, referencia blanda)`, quantity, unitPrice, selectedOptions, removedIngredients, notes.
+- **Product / Category / Allergen / Ingredient / OptionGroup / OptionChoice**: catálogo completo seedeado (12 categorías, 82 productos, 14 alérgenos UE).
+- Migración de direcciones aplicada: `20260616100000_add_addresses`.
 
 ### Decisiones de arquitectura
 - Stack: React (front) + Node/Express (back).
@@ -47,13 +69,51 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 - **Hosting: frontend en GitHub Pages** (https://jrero99.github.io/lcn/) vía GitHub Actions (`.github/workflows/deploy.yml`). Backend sin despliegue por ahora (sigue local).
 - **Modales en el front**: existe un `Modal` genérico y accesible en `frontend/src/components/Modal.jsx`. Reusar para todos los diálogos/confirmaciones; no crear modales ad-hoc nuevos.
 - **Separación de clases CSS de modales**: `ProductModal` (bottom-sheet) usa `.product-modal-backdrop`; `Modal` genérico usa `.modal-backdrop`. Nombres distintos para evitar conflicto de cascada.
+- **Pedir requiere login** (decisión de producto confirmada 2026-06-16): ambos modos (recoger y domicilio) exigen sesión activa. La guarda vive en `PedidoDatos.jsx` (inicio del flujo) para no perder el carrito al redirigir.
+- **Dirección de entrega**: solo obligatoria en modo domicilio. En recoger no se pide. La dirección es siempre la que el cliente selecciona o crea; sin geolocalización. Sin dirección guardada = no se puede confirmar pedido a domicilio.
+- **Carrito con personalizaciones por línea**: clave de línea = `productId + JSON(opciones + ingredientes + notas)`. Mismo producto con distinta personalización genera líneas separadas.
+- **Horarios de apertura**: fuente única en el backend (`backend/src/config/openingHours.js`) y en el frontend (`frontend/src/data/hours.js`). No duplicar en otros ficheros. Si cambian los horarios, actualizar ambos.
+- **Soft-delete de Address**: borrar físicamente rompería FK de pedidos históricos. El soft-delete mantiene la fila; las direcciones borradas no aparecen al usuario pero siguen referenciadas por `Order.addressId`.
+
+### Tests pendientes — instrucciones para `testing-expert`
+
+**CRUD de direcciones + ownership/IDOR (backend, integración):**
+1. `POST /api/addresses` con CP fuera de zona (p.ej. "28001" en Madrid) → 422.
+2. `POST /api/addresses` como 11ª dirección del mismo usuario → 422.
+3. `PATCH /api/addresses/:id` con ID de dirección de otro usuario → 404 (no 403, para no revelar existencia).
+4. `DELETE /api/addresses/:id` con ID de dirección de otro usuario → 404.
+5. `GET /api/addresses` — solo devuelve las del usuario autenticado, no las de otros.
+6. `DELETE /api/users/me` (borrado de cuenta) → todas las direcciones del usuario quedan con `deletedAt` no nulo.
+
+**4 casos de PATCH parcial de zona (backend, integración):**
+- a. `PATCH { city: "Barcelona" }` sobre dirección con `postalCode: "28001"` → 422 (ambos inválidos).
+- b. `PATCH { postalCode: "28001" }` sobre dirección con `city: "Reus"` → 422 (CP inválido).
+- c. `PATCH { postalCode: "08302" }` sobre dirección con `city: "Reus"` → 200 (CP válido compensa).
+- d. `PATCH { city: "Mataró" }` sobre dirección con `postalCode: "28001"` → 200 (city válida compensa).
+
+**Contrato `addressId` en `POST /api/orders` (backend, integración):**
+1. `POST /api/orders` con `mode=DELIVERY` y `addressId` ausente → 422.
+2. `POST /api/orders` con `mode=DELIVERY` y `addressId` de dirección de otro usuario → 400/404.
+3. `POST /api/orders` con `mode=DELIVERY` y `addressId` válido propio → 201 + `Order.deliveryAddress` contiene snapshot de texto + `Order.addressId` = el UUID enviado.
+4. `POST /api/orders` con `mode=PICKUP` sin `addressId` → 201 (campo ignorado).
+
+**Frontend (React Testing Library / integración):**
+- Ver entradas de bitácora 2026-06-16 frontend-react para lista completa de casos de flujo de pedido, AddressManager, 401-session-expiry y carrito con personalizaciones.
 
 ### Deuda / riesgos abiertos
+
+**[BLOQUEANTE-DEPLOY] B-1 — `trust proxy` no configurado** (`backend/src/index.js`):
+Sin `app.set('trust proxy', 1)`, `express-rate-limit` y todos los limiters (`addressMutationLimiter`, `reservationLimiter`, `loginLimiter`, etc.) leen la IP del proxy/balanceador en lugar de la IP real del cliente. Todos los usuarios compartirían el mismo bucket y el rate limiting se agotaría colectivamente. Obligatorio antes de cualquier despliegue del backend detrás de un proxy/CDN.
+
+**[BLOQUEANTE-LEGAL] RGPD-SSO — consentimiento implícito en usuarios Google-only:**
+`acceptedTerms: true` y `acceptedPrivacy: true` se asignan automáticamente al crear cuenta por SSO (`backend/src/services/authService.js:247`). No hay consentimiento explícito registrado. Bloqueante legal antes de producción.
+
+**[POST-MVP] B-2 — `Order.deliveryAddress` no se anonimiza al borrar cuenta (RGPD):**
+`deleteAccount()` hace soft-delete de Address pero el snapshot de texto en `Order.deliveryAddress` (calle, número, ciudad) permanece en BD. Para borrado RGPD completo habría que nullificar ese campo en todos los pedidos del usuario. (`backend/src/services/authService.js:277-297`)
+
 - Número de WhatsApp real del negocio pendiente (placeholder `34XXXXXXXXX` en `Reservas.jsx`).
 - Imágenes reales pendientes: hero, polaroids de la carta (3 fotos). La foto del local ya está integrada (`local.png`; pendiente optimización a `.webp`).
 - Fuente Salo sin auto-alojar (`@font-face` comentado en `index.css`; archivos ausentes en `assets/fonts/`).
-- Páginas Login y Registro sin construir; enlace "Iniciar Sesión" en el header apunta a `#` con TODO.
-- El keying del carrito es por `product.id` — variantes de opciones no generan líneas separadas (TODO en `OrderCatalog.jsx`).
 - Modal de HORAS DISPONIBLES en el flujo de reservas es iteración futura (TODO en `Reservas.jsx`).
 - [ALTO] JWT access token configurado a 7 días en `backend/src/utils/jwt.js:22` (maxAge cookie) pero `JWT_EXPIRES_IN` en .env.example dice "15m". El token real firmado por signToken usa `config.jwtExpiresIn` (default "7d"). Alargar la expiración en caso de robo de cookie extiende mucho la ventana de ataque. Requiere alinear duración real del JWT con la del cookie o implementar refresh tokens.
 - [ALTO] Rate limiting solo por IP (`express-rate-limit` default). No hay rate limiting por teléfono/cuenta en `POST /api/orders` ni en `POST /api/auth/login` a nivel de middleware (el bloqueo por cuenta en login está en memoria en-proceso: se reinicia al reiniciar el servidor y no escala a multi-instancia).
@@ -63,10 +123,585 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 - [BAJO] `backend/src/services/authService.js:loginFailures` — Map en memoria. En reinicios del proceso o deploy multi-instancia el contador se resetea, anulando la protección de bloqueo temporal.
 - [BAJO] `backend/src/controllers/adminController.js:listOrders` — el parámetro `?status=` no se valida contra el enum `OrderStatus` antes de pasarlo al where de Prisma. Un valor inválido no rompe la consulta (Prisma lo ignoraría o lanzaría error) pero es superficie de entrada sin sanear.
 - [BAJO] Dependencia transitiva vulnerable: `argon2@0.31.2` tira de `@mapbox/node-pre-gyp@1.0.11` que incluye `tar<=7.5.10` (CVE path traversal, severity HIGH). Es una dependencia de build/instalación, no de runtime, pero conviene resolverla con `npm audit fix` cuando haya versión compatible de argon2.
-
+- [MEDIO] Google SSO — vinculación automática de cuenta admin por email: si el admin (`lacasanostramataro@gmail.com`) hace login con Google y su email coincide, se vincula `googleId` sin promoción de rol (correcto), pero a partir de ese momento puede autenticarse sin contraseña. El rol se lee de BD en `requireAuth` (no del token), así que no hay escalada de privilegios. El riesgo real es que un atacante que controle una cuenta Google con el mismo email obtenga acceso admin vía SSO. Mitigación recomendada: registrar explícitamente en el log de auditoría cada vinculación de googleId en una cuenta existente (`backend/src/services/authService.js:224`), y considerar requerir re-autenticación por contraseña antes de vincular SSO en cuentas con `role=ADMIN`.
+- [MEDIO] Google SSO — `jwt.js:22` `maxAge` de cookie sigue a 7 días independientemente del `JWT_EXPIRES_IN`. Este riesgo existía antes del SSO pero se agrava porque ahora hay más superficie de autenticación. Pendiente de la deuda [ALTO] ya registrada sobre JWT lifetime.
+- [BAJO] Google SSO — `googleAuthLimiter` (10 req/IP/15 min) es más permisivo que `loginLimiter` (5 req/IP/15 min). Dado que ambos endpoints producen la misma cookie JWT, el endpoint SSO podría usarse para eludir el rate-limit más estricto del login por contraseña. Recomendación: igualar a 5 req/IP/15 min (`backend/src/middleware/rateLimiter.js:44`).
+- [BAJO] Google SSO — `dummyHash` en `login()` no es un hash argon2id válido. Si `argon2.verify` recibe ese string malformado lanzará una excepción en lugar de devolver `false`, lo que podría producir un 500 en lugar del 401 esperado. El flujo correcto se mantiene gracias al `if (!user.passwordHash)` posterior, pero la rama de timing-safe falla antes. Corrección: usar un hash pre-calculado real o capturar el error de `argon2.verify` (`backend/src/services/authService.js:98-102`).
+- [RESUELTO 2026-06-16] Addresses — PATCH con city sin postalCode (o viceversa): el refinement de zona en `updateAddressSchema` ha sido movido a `addressService.updateAddress()`, donde la fila existente ya está cargada. Se calculan los valores efectivos (`incoming ?? existing`) antes de validar la zona. Casos como PATCH `{ city: "Barcelona" }` sobre fila con `postalCode: "28001"` ahora devuelven 422. Ver bitácora 2026-06-16 backend-node (fix M-1).
+- [QA-PENDIENTE] GAP-6 — separador "o" en Login/Registro se muestra aunque no haya botón de Google (cuando `VITE_GOOGLE_CLIENT_ID` está vacío). Verificar visualmente que el separador desaparece junto con el botón.
+- [QA-PENDIENTE] GAP-7 — mezcla catalán/castellano en `CheckoutBar` y `OrderConfirmation`. Textos como "Sin dirección seleccionada" (castellano) conviven con literales en catalán. Pendiente de decisión de idioma y revisión editorial.
 ---
 
 ## Bitácora
+
+### [2026-06-16] frontend-react — Centralized 401 session-expiry handling
+
+- **Qué cambió**:
+  - Nuevo módulo `frontend/src/services/sessionEvents.js`: pub/sub de un solo slot sin dependencias de React. Exports: `onUnauthorized(handler)` (registro del listener, devuelve cleanup) y `notifyUnauthorized()` (disparo desde servicios).
+  - `frontend/src/context/AuthContext.jsx`: nuevo `useEffect` que registra el handler vía `onUnauthorized`. Cuando se dispara, llama `setUser(null)`. El efecto hace cleanup al desmontar. No se llama a `logoutRequest()` porque la cookie ya expiró en el servidor.
+  - `frontend/src/services/addressService.js`: todos los casos 401 (getAddresses, createAddress, updateAddress, deleteAddress) llaman `notifyUnauthorized()` antes de lanzar el Error.
+  - `frontend/src/services/adminService.js`: `adminFetch()` detecta `res.status === 401` y llama `notifyUnauthorized()` antes de lanzar el Error — cubre todos los endpoints admin con un único punto.
+
+- **Por qué**: cuando el JWT expiraba (15 min), el header seguía mostrando "Hola, {nombre}" y `AddressManager` mostraba "Necesitas iniciar sesión" aunque el header dijera que estabas autenticado — inconsistencia visible para el usuario. La fuente de verdad es el servidor; un 401 en cualquier endpoint protegido significa que la sesión ya no es válida.
+
+- **Impacto para otros agentes**:
+  - `backend-node`: ninguno. No cambia ningún contrato de API.
+  - `testing-expert`: se puede añadir test de integración que simule un 401 en `getAddresses` y verifique que `AuthContext` pone `user = null`.
+  - `security-expert`: el mecanismo no almacena ningún token; sigue el modelo de cookie httpOnly. Sin nuevos vectores XSS ni CSRF.
+
+- **Acción requerida**: ninguna bloqueante. Ver nota para `testing-expert` arriba.
+
+### [2026-06-16] frontend-react — QA bug fixes: AddressManager + flujo de pedido (BUG-1/2/3/4, GAP-5)
+
+- **Qué cambió**:
+
+  **`frontend/src/components/AddressManager.jsx`**:
+  - **BUG-1**: nueva prop `onFormOpenChange(isOpen: boolean)`. Se llama cada vez que `view`
+    cambia entre `'list'` y `'add'`/`'edit'` via el nuevo helper interno `changeView()`.
+    Todos los handlers que hacen `setView` ahora usan `changeView` para notificar al padre.
+  - **BUG-2**: nueva función `isInDeliveryZone(city, postalCode)` + constante
+    `MATARO_POSTAL_CODES`. `validateForm` ahora rechaza combinaciones ciudad+CP que no sean
+    Mataró (CP 08301–08304) con el mensaje "Solo realizamos entregas en Mataró (CP 08301–08304).".
+    Aplica sobre los campos `city` y `postalCode` juntos. El manejo del 422 del servidor sigue
+    presente como red de seguridad.
+  - **BUG-3**: en `handleConfirmDelete`, cuando la dirección borrada es la actualmente
+    seleccionada, se llama también a `onSelectAddress(null)` además de `onSelect(null)`.
+
+  **`frontend/src/pages/PedidoDatos.jsx`**:
+  - **BUG-1**: nuevo estado `addressFormOpen` (boolean). Pasado como `onFormOpenChange` a
+    `<AddressManager>`. El botón "Continuar" queda `disabled` también cuando `addressFormOpen`
+    es `true`. Mensaje de ayuda contextual "Guarda o cancela la dirección antes de continuar."
+  - **BUG-3**: el callback `onSelectAddress` ahora maneja `addr === null` limpiando
+    `selectedAddressLabel` a `''`.
+  - **GAP-5**: el redirect a `/login` se aplica ahora a **todos los modos** (recoger y
+    domicilio), no solo domicilio. `state.from` preserva el modo correcto
+    (`/hacer-pedido/datos?mode=recoger` o `?mode=domicilio`).
+  - `useEffect` (sin uso) eliminado del import.
+
+  **`frontend/src/pages/OrderConfirmation.jsx`**:
+  - **BUG-4**: `hasValidState` comprueba que `state != null`, que `state.mode` es
+    `'recoger'`/`'domicilio'` y que `state.items` es un array no vacío. Si la condición falla
+    (acceso directo, recarga dura, o URL escrita a mano), se hace `<Navigate to="/hacer-pedido" replace />`.
+    La comprobación de auth se mantiene después, como red de seguridad.
+
+- **Por qué**: bugs detectados por QA en la feature de direcciones de pedido.
+
+- **Decisiones**:
+  - GAP-5 se resuelve bloqueando en `PedidoDatos` (inicio del flujo) en vez de en
+    `OrderConfirmation` (final), para que el carrito no se pierda al redirigir sin sesión.
+  - La validación de zona en `AddressManager` (BUG-2) pone error en ambos campos (city y
+    postalCode) para que el usuario entienda que la combinación completa no es válida.
+
+- **Verificación**: `npm run build` → 85 módulos, 0 errores, 0 warnings.
+
+- **Impacto para otros agentes**:
+  - `testing-expert`: nuevos casos a cubrir: (1) modo recoger sin sesión → redirect `/login`;
+    (2) abrir formulario de alta en AddressManager → "Continuar" deshabilitado; (3) guardar/cancelar
+    formulario → "Continuar" habilitado de nuevo (si hay dirección seleccionada); (4) borrar
+    dirección seleccionada → label limpiado, "Continuar" deshabilitado; (5) CP/ciudad fuera de
+    Mataró → error en cliente antes de enviar al servidor; (6) acceso directo a
+    `/hacer-pedido/confirmar` → redirect a `/hacer-pedido`.
+  - `qa-expert`: verificar que el mensaje "Guarda o cancela la dirección antes de continuar."
+    aparece visualmente cuando hay un formulario abierto y el botón está gris.
+
+- **Acción requerida**: ninguna para otros agentes.
+
+### [2026-06-16] backend-node — Fix M-1: validación de zona de reparto en PATCH parcial de direcciones
+
+- **Qué cambió**:
+  - `backend/src/validators/addresses.js`: eliminado el `superRefine` de zona de reparto de `updateAddressSchema`. El Zod schema para PATCH ya no intenta validar la combinación `city+postalCode` porque no tiene acceso a los valores actuales en BD. Se conserva el refinement de "body vacío" y todos los validadores de formato por campo (`postalCodeField` sigue exigiendo 5 dígitos, `cityField` sigue exigiendo longitud 2-100, etc.). Añadido comentario explícito indicando dónde vive ahora la comprobación.
+  - `backend/src/services/addressService.js`: añadida función helper privada `isInDeliveryZone(city, postalCode)` que replica la regla (misma lógica que `refineDeliveryZone` en el validator). En `updateAddress()`, la query de lectura de la fila existente ahora también selecciona `city` y `postalCode`. Tras el ownership check, si el PATCH toca `city` y/o `postalCode`, se calculan los valores efectivos (`data.X ?? existing.X`) y se llama a `isInDeliveryZone`; si falla, lanza `httpError(422, 'Delivery is only available in Mataró (postal codes 08301–08304)')`, mismo mensaje y código que el POST.
+
+- **Por qué**: hallazgo de seguridad M-1. El refinement anterior evaluaba la zona usando solo los campos del body, rellenando el ausente con cadena vacía. Esto permitía que un PATCH con `{ postalCode: "08301" }` pasara aunque la fila tuviera `city: "Reus"` (combinación incoherente), o que `{ city: "Mataró" }` pasara dejando `postalCode: "28001"` en BD.
+
+- **Casos cubiertos por el fix**:
+  1. `PATCH { city: "Barcelona" }` con fila existente `postalCode: "08301"` → efectivo `(Barcelona, 08301)` → validCity=false, validPostal=true → **pasa** (CP válido compensa). Comportamiento correcto.
+  2. `PATCH { city: "Mataró" }` con fila existente `postalCode: "28001"` → efectivo `(Mataró, 28001)` → validCity=true → **pasa**. Correcto.
+  3. `PATCH { postalCode: "08301" }` con fila existente `city: "Reus"` → efectivo `(Reus, 08301)` → validPostal=true → **pasa**. Correcto (el CP es el campo autoritativo para la zona).
+  4. `PATCH { city: "Barcelona" }` con fila existente `postalCode: "28001"` → efectivo `(Barcelona, 28001)` → validCity=false, validPostal=false → **422**. Era el bug; ahora se rechaza.
+  5. `PATCH { postalCode: "28001" }` con fila existente `city: "Reus"` → efectivo `(Reus, 28001)` → **422**. Bug simétrico; también corregido.
+
+- **Impacto para otros agentes**:
+  - `testing-expert`: añadir casos de integración para PATCH parcial: (a) PATCH `{ city: "Barcelona" }` sobre dirección con `postalCode: "28001"` → 422; (b) PATCH `{ postalCode: "28001" }` sobre dirección con `city: "Reus"` → 422; (c) PATCH `{ postalCode: "08302" }` sobre dirección con `city: "Reus"` → 200 (CP válido compensa); (d) PATCH `{ city: "Mataró" }` sobre dirección con `postalCode: "28001"` → 200 (city válida compensa).
+  - `frontend-react`: sin cambio de contrato. El endpoint sigue respondiendo 422 con `{ error: "Delivery is only available in Mataró (postal codes 08301–08304)" }` en caso de zona inválida. El `AddressManager` ya maneja este 422.
+
+- **Acción requerida**: `testing-expert` cubrir los 4 casos de test indicados arriba.
+
+### [2026-06-16] security-expert -- Auditoria feature gestion de direcciones (RGPD + IDOR)
+
+- **Que cambio**: Auditoria de la feature de gestion de direcciones de usuario antes del merge a main.
+- **Por que**: Dato personal (RGPD). Riesgo de IDOR/BOLA (acceso a recursos de otros usuarios). Foco en los 7 puntos solicitados.
+- **Resultado**: Sin hallazgos CRITICOS ni ALTOS nuevos en esta feature. Ownership check correcto. Un hallazgo MEDIO (validacion de zona en PATCH parcial) y dos hallazgos BAJO documentados en 'Deuda / riesgos abiertos'.
+- **Impacto para otros agentes**: Ninguna accion bloqueante. El hallazgo MEDIO de validators/addresses.js debe resolverse antes de produccion.
+- **Accion requerida**: backend-node corregir la logica de refineDeliveryZone en updateAddressSchema cuando solo se actualiza uno de los dos campos de zona (city o postalCode sin el otro).
+
+### [2026-06-16] frontend-react — Gestión de direcciones + login obligatorio en flujo de pedido
+
+- **Qué cambió**:
+
+  **Ficheros nuevos:**
+  - `frontend/src/services/addressService.js` — capa de servicios con las 4 operaciones CRUD sobre `/api/addresses` (`getAddresses`, `createAddress`, `updateAddress`, `deleteAddress`) + helper `formatAddress(addr)`. Todas las llamadas usan `credentials: 'include'`. Errores en castellano por código HTTP.
+  - `frontend/src/components/AddressManager.jsx` — componente reutilizable de gestión de direcciones. Estados: `list` (selector con radio + editar/borrar), `add` (POST /api/addresses), `edit` (PATCH /api/addresses/:id). Modal de confirmación de borrado reutiliza `Modal` genérico. Props: `selectedId`, `onSelect(id)`, `onSelectAddress(addr)`, `showHeading`. Disponible para uso futuro en página de cuenta de usuario.
+
+  **Ficheros modificados:**
+  - `frontend/src/pages/PedidoDatos.jsx` — reescritura: modo `recoger` no pide dirección; modo `domicilio` requiere sesión (redirect a `/login` si no hay sesión), monta `<AddressManager>`, botón "Continuar" deshabilitado hasta que haya `selectedAddressId`. Botón "Usar mi ubicación" (geolocalización) **eliminado** definitivamente. Propaga `{ addressId, addressLabel, timing, age }` en lugar de `{ address, timing, age }`.
+  - `frontend/src/pages/OrderCatalog.jsx` — lee `addressId` y `addressLabel` de `useLocation().state`; los pasa a `<CheckoutBar>` y los propaga al navegar a confirmación. Guarda de recarga: si `mode=domicilio` y `addressId===null` (navState perdido) → redirect a `/hacer-pedido/datos?mode=domicilio`.
+  - `frontend/src/pages/OrderConfirmation.jsx` — añadida guarda de sesión: redirect a `/login` si no autenticado. Lee `addressId` del state (listo para `POST /api/orders`).
+  - `frontend/src/components/CheckoutBar.jsx` — nueva prop `addressLabel` (string|null). Muestra la dirección real del usuario; si null → "Sin dirección seleccionada". Elimina el placeholder hardcodeado anterior.
+  - `frontend/src/index.css` — nuevas clases para `AddressManager` y sub-componentes: `.addr-manager`, `.addr-list`, `.addr-item`, `.addr-item--selected`, `.addr-item-radio-*`, `.addr-form-*`, `.addr-add-btn`, `.addr-modal-actions`, `.btn--danger`. `.btn-continue:disabled` añadido. Responsive ≤520px.
+
+- **Cambio de contrato de navegación (state) en el flujo de pedido**:
+  ```diff
+  - navigate('/hacer-pedido/{mode}', { state: { address: string, timing, age } })
+  + navigate('/hacer-pedido/{mode}', { state: { addressId: string|null, addressLabel: string|null, timing, age } })
+  - navigate('/hacer-pedido/confirmar', { state: { mode, items, total } })
+  + navigate('/hacer-pedido/confirmar', { state: { mode, items, total, addressId, addressLabel } })
+  ```
+
+- **Login obligatorio para pedir**: `PedidoDatos` (modo domicilio) y `OrderConfirmation` comprueban `useAuth().isAuthenticated`. Si no hay sesión → redirect a `/login` con `state.from`. El modo recoger en PedidoDatos NO requiere sesión.
+
+- **Componente `AddressManager` listo para cuenta de usuario**: usar sin props para gestión standalone. Con `selectedId` + `onSelect` + `onSelectAddress` para el flujo de pedido.
+
+- **Verificación**: `npm run build` → 84 módulos, 0 errores, 0 warnings.
+
+- **Impacto para otros agentes**:
+  - `testing-expert`: (1) domicilio sin sesión → redirect `/login`; (2) domicilio con sesión sin direcciones → formulario de alta; (3) domicilio con sesión y direcciones → selector radio, Continuar habilitado tras seleccionar; (4) dirección fuera de Mataró → error 422 mostrado; (5) editar/borrar direcciones; (6) límite 10 → botón "Añadir" oculto; (7) recoger → no aparece campo de dirección.
+  - `qa-expert`: verificar UX del selector en móvil (radio dot, touch target 44px), que el botón "Continuar" sea visualmente gris/deshabilitado sin dirección, que el texto del checkout bar muestre la dirección real.
+  - `backend-node`: ninguna acción requerida.
+
+- **Acción requerida**: cuando se implemente `POST /api/orders` en el frontend, incluir `addressId` en el body si `mode === 'domicilio'` (ya disponible en `OrderConfirmation.state.addressId`).
+
+### [2026-06-16] frontend-react — Bug fix: dirección real del usuario en la barra de checkout (domicilio)
+
+- **Qué cambió**:
+
+  **`frontend/src/pages/OrderCatalog.jsx`**:
+  - Añadida prop `addressLabel={addressLabel}` a `<CheckoutBar>`. Era la prop faltante: `addressLabel` se leía de `navState` (línea 87) pero no se pasaba hacia abajo.
+  - Importado `Navigate` de `react-router-dom`.
+  - Añadida guarda de recarga de página: si `mode === 'domicilio'` y `addressId` es `null` (navState perdido en recarga dura), se renderiza `<Navigate to="/hacer-pedido/datos?mode=domicilio" replace />` antes de cualquier otro render. Esto evita que el usuario vea el catálogo con una dirección vacía o inválida.
+
+  **`frontend/src/pages/PedidoDatos.jsx`** — sin cambios. Ya tenía la lógica correcta:
+  - `selectedAddressLabel` se declara y se setea via `onSelectAddress` prop del `AddressManager`.
+  - El label se construye como `(addr.label ? addr.label + ' — ' : '') + formatAddress(addr)`.
+  - Se propaga en `navigate` como `addressLabel`.
+
+  **`frontend/src/components/AddressManager.jsx`** — sin cambios. Ya invoca `onSelectAddress(addr)` con el objeto completo en todos los puntos de selección (radio change, click en contenido, auto-select tras crear dirección nueva).
+
+  **`frontend/src/components/CheckoutBar.jsx`** — sin cambios. Ya tenía prop `addressLabel` declarada y la usaba en modo domicilio: `{addressLabel ?? 'Sin dirección seleccionada'}`. No había texto hardcodeado de ninguna calle.
+
+- **Por qué**: la prop `addressLabel` nunca llegaba a `CheckoutBar` porque `OrderCatalog` no la incluía en el JSX. La barra mostraba el fallback `null ?? 'Sin dirección seleccionada'`.
+
+- **Flujo corregido**:
+  1. `AddressManager` → `onSelectAddress(addr)` con objeto completo.
+  2. `PedidoDatos` → `setSelectedAddressLabel(formatAddress(addr))` y luego `navigate('/hacer-pedido/domicilio', { state: { addressId, addressLabel } })`.
+  3. `OrderCatalog` → lee `navState.addressLabel`, lo pasa como `addressLabel={addressLabel}` a `<CheckoutBar>`.
+  4. `CheckoutBar` → renderiza el string formateado en modo domicilio.
+
+- **Caso de recarga de página**: `navState` se pierde en una recarga dura del navegador. Si `mode === 'domicilio'` y `addressId === null`, `OrderCatalog` redirige a `/hacer-pedido/datos?mode=domicilio` con `replace`. El usuario selecciona de nuevo su dirección y continúa.
+
+- **Verificación**: `npm run build` → 84 módulos, 0 errores, 0 warnings.
+
+- **Acción requerida**: ninguna.
+
+### [2026-06-16] frontend-react — Carrito con personalizaciones por línea + panel expandible + recibo detallado
+
+- **Qué cambió**:
+
+  **`frontend/src/pages/OrderCatalog.jsx`** (refactor del carrito):
+  - Estructura del carrito cambiada de `{ [productId]: { product, quantity } }` a `{ [lineKey]: { key, product, quantity, selectedOptions, removedIngredients, notes } }`. Una clave combina `productId + JSON({ opciones ordenadas, ingredientes removidos ordenados, notas })`. Mismo producto con distintas personalizaciones = líneas separadas; misma personalización = incrementa quantity.
+  - `handleAddToCart` ya respeta la personalización recibida del `ProductModal`. El "+" de `ProductCard` pasa objeto vacío → su propia clave "sin personalizar".
+  - Nuevos helpers: `buildCartKey`, `computeUnitPrice` (suma `priceExtra` de los choices), `resolveOptionLabels` (convierte `selectedOptions` a `[{ groupLabel, choiceLabel }]`).
+  - `handleChangeLineQuantity(key, delta)` y `handleRemoveLine(key)` — nuevas callbacks que se pasan a `CheckoutBar`.
+  - `handleCheckout` construye items con forma enriquecida: `{ key, id, name, unitPrice, quantity, lineTotal, options[], removedIngredients[], notes }`.
+  - Props nuevas pasadas a `CheckoutBar`: `cartCount`, `cartLines`, `onChangeLineQuantity`, `onRemoveLine`.
+
+  **`frontend/src/components/CheckoutBar.jsx`** (panel expandible):
+  - Envuelto en `.checkout-bar-container` (el fijo) que contiene encima `.checkout-cart-panel` (deslizable).
+  - El botón "Ver pedido (N)" / "Ocultar" alterna `expanded`. Muestra contador de unidades.
+  - Panel lista todas las líneas: controles +/−, nombre, precio de línea, icono eliminar. Bajo cada línea, las personalizaciones (opciones, Sin:, Nota:) solo si existen.
+  - `aria-expanded`, `aria-controls`, `aria-label` dinámicos. Todos los botones ≥44px de tap target. Panel con `overscroll-behavior: contain` y `max-height: 55vh`.
+
+  **`frontend/src/pages/OrderConfirmation.jsx`** (recibo con personalizaciones):
+  - Cada `<li>` es ahora un `.confirm-list-item` con dos partes: fila `cantidad×nombre + precio` y (si existe) lista `.confirm-item-custom` con las personalizaciones (opciones, Sin:, Nota:).
+  - Compatible con el shape nuevo (`unitPrice/lineTotal/options`) y con el shape legado (`price`) mediante fallbacks.
+  - `key` único de línea: usa `it.key` del carrito (nunca duplicado aunque haya dos líneas del mismo producto).
+
+  **`frontend/src/index.css`**:
+  - `.checkout-bar` ya no tiene `position: fixed` propio (lo hereda del contenedor `.checkout-bar-container`).
+  - Clases nuevas: `.checkout-bar-container`, `.checkout-cart-panel`, `.checkout-cart-panel-inner`, `.checkout-cart-lines`, `.checkout-cart-line`, `.checkout-cart-line-main`, `.checkout-cart-line-qty`, `.checkout-cart-qty-btn`, `.checkout-cart-qty-num`, `.checkout-cart-line-name`, `.checkout-cart-line-total`, `.checkout-cart-remove-btn`, `.checkout-cart-custom`, `.checkout-cart-custom-item`, `.checkout-cart-custom-label`, `.checkout-bar-view-btn`.
+  - Clases de confirmación actualizadas: `.confirm-list-item`, `.confirm-list-item-row`, `.confirm-item-label`, `.confirm-item-price`, `.confirm-item-custom`, `.confirm-item-custom-row`, `.confirm-item-custom-label`. El `li` directo `.confirm-total` sigue funcionando.
+  - Responsive: overrides en ≤860px (panel indentación) y ≤520px (panel altura, indentación reducida, view-btn tap target).
+
+- **Por qué**: las personalizaciones (acompañante, salsa, ingredientes quitados, nota libre) se perdían al añadir al carrito. Requisito del usuario.
+
+- **Decisiones de UX tomadas**:
+  - El panel de carrito se abre encima de la barra fija (no modal separado) para que el usuario pueda seguir viendo la carta al cerrarlo.
+  - El botón "Ver pedido" con contador de unidades es más informativo que un contador solo.
+  - Se evitó el `Modal` genérico para el panel de carrito porque la hoja deslizante da mejor UX en móvil para una lista de items (el `Modal` genérico está centrado y es para confirmaciones de una sola acción).
+  - Las personalizaciones se muestran con tamaño reducido y color atenuado (`var(--muted)`) para no competir visualmente con el nombre del producto.
+
+- **Impacto para otros agentes**:
+  - `backend-node`: cuando se conecte `POST /api/orders`, el body de cada item ya viene con `selectedOptions`, `removedIngredients` y `notes` (campos preparados en `handleCheckout`). No requiere cambios en el contrato ya documentado.
+  - `testing-expert`: nuevos flujos a cubrir: (1) dos bocadillos iguales con distintas salsas → dos líneas en panel; (2) mismo producto misma personalización → una línea con quantity 2; (3) +/− en panel actualiza total; (4) eliminar línea; (5) recibo muestra personalizaciones por línea.
+
+- **Verificación**: `npm run build` → 82 módulos, 0 errores, 0 warnings.
+
+- **Acción requerida**: ninguna inmediata.
+
+### [2026-06-16] backend-node — Modelo Address + CRUD /api/addresses + cambio de contrato POST /api/orders
+
+- **Qué cambió**:
+
+  **Schema Prisma (`backend/prisma/schema.prisma`)**:
+  - Nuevo modelo `Address` (tabla `addresses`): `id UUID PK`, `userId FK`, `label?`, `street`, `number`, `floorDoor?`, `postalCode CHAR(5)`, `city`, `notes?`, `deletedAt?` (soft-delete), `createdAt`, `updatedAt`. Índices en `(userId)` y `(userId, deletedAt)`.
+  - Soft-delete justificado: las `Order` guardan FK blando `addressId → addresses.id`. Borrar físicamente una dirección rompería la integridad referencial de pedidos históricos. El soft-delete mantiene la fila (y la FK) mientras el usuario ya no la ve.
+  - Modelo `Order` ampliado: nuevo campo `addressId UUID? @map("address_id")` con FK a `Address` (`ON DELETE SET NULL`). El campo `deliveryAddress String?` sigue siendo el snapshot inmutable (texto libre). Índice añadido en `orders.address_id`.
+  - Relación inversa en `User`: `addresses Address[]`.
+
+  **Migración SQL** (`backend/prisma/migrations/20260616100000_add_addresses/migration.sql`):
+  - `CREATE TABLE "addresses"` con todas las columnas.
+  - FK `addresses.user_id → users.id` con `ON DELETE RESTRICT`.
+  - `ALTER TABLE "orders" ADD COLUMN "address_id" UUID`.
+  - FK `orders.address_id → addresses.id` con `ON DELETE SET NULL`.
+  - Índices correspondientes.
+
+  **Ficheros nuevos**:
+  - `backend/src/validators/addresses.js` — schemas Zod `createAddressSchema` y `updateAddressSchema`. Validación de zona de reparto (Mataró / CP 08301–08304) en el servidor. Rechaza PATCH vacío.
+  - `backend/src/services/addressService.js` — `listAddresses`, `createAddress` (cap 10 por usuario), `updateAddress`, `softDeleteAddress`, `softDeleteAllUserAddresses` (RGPD), `resolveAddressForOrder` (para orderService), `buildAddressSnapshot` (genera la cadena de texto del snapshot).
+  - `backend/src/controllers/addressController.js` — handlers `getAddresses`, `addAddress`, `editAddress`, `deleteAddress`.
+  - `backend/src/routes/addresses.js` — rutas `/api/addresses` con `requireAuth` + `addressMutationLimiter` en mutaciones.
+
+  **Ficheros modificados**:
+  - `backend/src/middleware/rateLimiter.js` — añadido `addressMutationLimiter` (20 req/IP/hora para POST/PATCH/DELETE de addresses).
+  - `backend/src/index.js` — importado e instalado `addressesRoutes` en `/api/addresses`.
+  - `backend/src/validators/orders.js` — **BREAKING CHANGE**: campo `address` (objeto inline) eliminado; sustituido por `addressId` (UUID). Para `mode=DELIVERY`, el body ahora DEBE incluir `addressId` que pertenezca al usuario autenticado. Instrucción al cliente: crear la dirección primero via `POST /api/addresses`.
+  - `backend/src/services/orderService.js` — usa `resolveAddressForOrder(userId, addressId)` + `buildAddressSnapshot()` en lugar de construir `addressStr` desde el body. Guarda `addressId` en `Order.addressId`. El snapshot sigue en `Order.deliveryAddress`.
+  - `backend/src/services/authService.js` — `deleteAccount()` llama a `softDeleteAllUserAddresses(userId)` antes de anonimizar el usuario (RGPD: las direcciones son dato personal).
+
+- **Por qué**: el usuario quiere que los clientes puedan guardar múltiples direcciones en su cuenta y seleccionarlas al hacer un pedido a domicilio. El flujo anterior aceptaba una dirección libre en el body del pedido; ahora el pedido referencia una dirección previamente creada y verificada.
+
+- **Contrato de API — `/api/addresses`** (todos requieren cookie JWT / `credentials: 'include'`):
+
+  ```
+  GET /api/addresses
+  → 200 { addresses: Address[] }
+  → 401 si no autenticado
+
+  POST /api/addresses
+  Body: {
+    label?:     string (max 50)       — "Casa", "Trabajo"
+    street:     string (3–200)        — "Carrer de Barcelona"
+    number:     string (1–10)         — "12", "12B"
+    floorDoor?: string (max 50)       — "3r 2a", "Bajos"
+    postalCode: string (5 dígitos)    — "08302"
+    city:       string (2–100)        — "Mataró"
+    notes?:     string (max 300)      — "Portero 2B"
+  }
+  → 201 { address: Address }
+  → 401 si no autenticado
+  → 422 Zod o zona fuera de Mataró/08301-08304
+  → 422 si el usuario ya tiene 10 direcciones activas
+  → 429 rate limit
+
+  PATCH /api/addresses/:id
+  Body: cualquier subconjunto de los campos de POST (al menos uno)
+  → 200 { address: Address }
+  → 401 si no autenticado
+  → 404 si la dirección no existe, está borrada, o es de otro usuario
+  → 422 Zod o zona fuera de Mataró/08301-08304
+  → 429 rate limit
+
+  DELETE /api/addresses/:id
+  → 204 (sin body)
+  → 401 si no autenticado
+  → 404 si la dirección no existe, está borrada, o es de otro usuario
+  → 429 rate limit
+  ```
+
+  Forma de `Address` en la respuesta:
+  ```json
+  {
+    "id": "uuid",
+    "label": "Casa",
+    "street": "Carrer de Barcelona",
+    "number": "12",
+    "floorDoor": "3r 2a",
+    "postalCode": "08302",
+    "city": "Mataró",
+    "notes": "Portero 2B",
+    "createdAt": "2026-06-16T10:00:00.000Z"
+  }
+  ```
+
+- **Cambio de contrato — `POST /api/orders`** (BREAKING para el frontend):
+
+  ```diff
+  - Body: { ..., address: { street, city, postalCode, ... } }
+  + Body: { ..., addressId: "uuid" }   (solo para mode=DELIVERY)
+  ```
+
+  Reglas:
+  - `mode=DELIVERY` → `addressId` OBLIGATORIO (UUID que pertenezca al usuario). 400 si ausente o inválido.
+  - `mode=PICKUP` → `addressId` IGNORADO / no necesario.
+  - El servidor llama a `resolveAddressForOrder(userId, addressId)` para verificar ownership.
+  - Copia el snapshot (`buildAddressSnapshot`) a `Order.deliveryAddress`.
+  - Guarda el FK blando en `Order.addressId`.
+
+  Flujo de UI recomendado para el frontend:
+  1. Antes de llegar al paso de confirmación del pedido a domicilio, verificar que el usuario tiene al menos una dirección (`GET /api/addresses`).
+  2. Si no tiene ninguna, mostrar el formulario de "Añadir dirección" (`POST /api/addresses`).
+  3. Si tiene varias, mostrar selector. El UUID elegido se envía como `addressId` en `POST /api/orders`.
+  4. No rellenar nada de forma automática (sin geolocalización). Si no hay dirección guardada → no se puede confirmar.
+
+- **RGPD — direcciones como dato personal**:
+  - `DELETE /api/users/me` (borrado de cuenta) llama a `softDeleteAllUserAddresses(userId)` antes de anonimizar el usuario. Las filas de `addresses` reciben `deletedAt = now()`.
+  - Los pedidos históricos retienen su `deliveryAddress` (snapshot de texto) y `addressId` FK. Esto es necesario para la trazabilidad del pedido (el admin necesita saber a dónde se entregó).
+  - En un borrado RGPD completo (post-MVP), se podrían nullificar también los snapshots de texto, pero eso requiere decisión explícita y escapa al MVP.
+
+- **Verificación**: `node --check` OK en todos los ficheros tocados (9 archivos).
+
+- **Impacto para otros agentes**:
+  - `frontend-react`: **ACCIÓN REQUERIDA**. El flujo de pedido a domicilio debe cambiar:
+    1. Añadir pantalla/modal de gestión de direcciones (listar, crear, seleccionar).
+    2. Enviar `addressId` en lugar del objeto `address` en `POST /api/orders`.
+    3. Gestionar el caso "sin direcciones" con UI clara.
+    Ver contrato completo arriba.
+  - `testing-expert`: tests de integración recomendados: (1) `POST /api/addresses` con CP fuera de zona → 422; (2) ownership check: usuario A no puede editar/borrar dirección de usuario B → 404; (3) 11ª dirección → 422; (4) `POST /api/orders DELIVERY` sin `addressId` → 422; (5) `POST /api/orders DELIVERY` con `addressId` de otro usuario → 400; (6) `DELETE /api/users/me` → todas las direcciones quedan con `deletedAt` no nulo.
+  - `security-expert`: revisar que el ownership check en `updateAddress` y `softDeleteAddress` devuelve 404 (no 403) para no filtrar existencia de direcciones de otros usuarios — ya implementado así.
+
+- **Acción requerida**:
+  - `frontend-react`: adaptar flujo de pedido a domicilio (ver arriba).
+  - `testing-expert`: cubrir los casos indicados.
+  - Ejecutar la migración en la BD: `npx prisma migrate deploy` (o `migrate dev --name add_addresses` si se prefiere regenerar).
+
+### [2026-06-16] backend-node — `POST /api/reservations` reimplementado con validación de horario de apertura
+
+- **Qué cambió**:
+
+  **Ficheros nuevos:**
+  - `backend/src/config/openingHours.js` — fuente única de los horarios de apertura. Exporta la constante `OPENING_HOURS` (array de 7 posiciones, índice = `Date.getDay()`, 0=domingo…6=sábado; cada posición es un array de `{ open: 'HH:MM', close: 'HH:MM' }` con `'24:00'` para medianoche; días cerrados = `[]`) y la función `isWithinOpeningHours(localDate)` que devuelve `{ open: boolean, reason?: string }`. No duplicar en ningún otro fichero.
+  - `backend/src/validators/reservations.js` — schema Zod para `POST /api/reservations`. Valida `date` ("YYYY-MM-DD"), `time` ("HH:MM" 24h), `zone` (enum `interior|terrassa|barra`), `guests` (entero 1–20). Incluye campo honeypot `_honey`.
+  - `backend/src/services/reservationService.js` — lógica de negocio: parsea `date`+`time` como hora local de Europe/Madrid (usando `Intl.DateTimeFormat` con la corrección de offset DST, sin dependencias externas), rechaza fechas pasadas, llama a `isWithinOpeningHours`. Retorna `{ availableSlots: [] }` (MVP: el admin contacta al cliente para confirmar).
+  - `backend/src/controllers/reservationController.js` — handler `createReservation`: valida con Zod y delega en el servicio.
+  - `backend/src/routes/reservations.js` — `POST /` con `reservationLimiter + honeypot + createReservation`.
+
+  **Ficheros modificados:**
+  - `backend/src/middleware/rateLimiter.js` — añadido `reservationLimiter` (5 req/IP/hora).
+  - `backend/src/index.js` — importado e instalado `reservationsRoutes` en `/api/reservations`.
+
+- **Horarios implementados** (Europe/Madrid):
+
+  | Día | Franja(s) |
+  |-----|-----------|
+  | Lunes | CERRADO |
+  | Martes | CERRADO |
+  | Miércoles | 18:00–23:30 |
+  | Jueves | 18:00–23:30 |
+  | Viernes | 18:00–24:00 |
+  | Sábado | 11:00–16:00 y 19:00–24:00 |
+  | Domingo | 11:00–16:00 |
+
+- **Contrato del endpoint**:
+
+  ```
+  POST /api/reservations
+  Content-Type: application/json
+  Body: { "date": "YYYY-MM-DD", "time": "HH:MM", "zone": "interior|terrassa|barra", "guests": 1-20 }
+
+  Respuesta 200 OK:
+  { "availableSlots": [] }
+
+  Errores:
+    422 (Zod) — body invalido: { "error": "Validation error", "issues": [...] }
+    422 — dia cerrado: { "error": "El restaurante esta tancat aquell dia" }
+    422 — hora fuera de rango: { "error": "La franja horaria sol·licitada esta fora de l'horari d'obertura (HH:MM-HH:MM)" }
+    422 — fecha/hora en el pasado: { "error": "No es pot fer una reserva en una data o hora ja passada" }
+    403 — honeypot relleno: { "error": "Forbidden" }
+    429 — rate limit: { "error": "Too many requests. Please try again later." }
+  ```
+
+- **Supuesto de formato/zona horaria**: el frontend envia `date` como cadena `"YYYY-MM-DD"` (valor del `<input type="date">`) y `time` como `"HH:MM"` (select de horas). Ambas se interpretan en la zona Europe/Madrid. El servidor usa `Intl.DateTimeFormat` con `timeZone: 'Europe/Madrid'` para corregir el offset DST sin necesitar librerias externas.
+
+- **Regla de validacion de horario**: `open <= H < close` para algun rango del dia (limite inferior inclusivo, limite superior exclusivo). Medianoche se codifica como `'24:00'` (= 1440 min) para que la comparacion de enteros funcione sin aritmetica circular.
+
+- **Verificacion**: `node --check` OK en todos los ficheros tocados. 20 casos limite ejecutados en Node directamente — todos pasan.
+
+- **Impacto para otros agentes**:
+  - `frontend-react`: el punto de integracion en `Reservas.jsx` (marcado `// TODO`) puede conectarse a `POST /api/reservations` con body `{ date, time, zone, guests }`. Si el servidor devuelve 422, mostrar el `error` del body al usuario.
+  - `testing-expert`: tests de integracion recomendados: (1) dia cerrado → 422; (2) hora fuera de rango → 422; (3) dentro de horario → 200; (4) fecha pasada → 422; (5) honeypot relleno → 403; (6) rate limit → 429.
+
+- **Accion requerida**:
+  - `frontend-react`: conectar el submit de `Reservas.jsx` al endpoint real.
+  - El negocio debe confirmar los horarios en `backend/src/config/openingHours.js` antes de produccion (cambio de horario = un solo fichero).
+
+### [2026-06-16] backend-node — Catálogo expone `ingredients[]` + opción "Boniato" en hamburguesas
+
+- **Qué cambió**:
+  - `backend/src/services/catalogService.js`: `GET /api/catalog` ahora incluye `ingredients: string[]` por producto (antes se omitía pese a existir en BD). Añadido `ingredients` al `include` de Prisma y al mapeo de respuesta. Con esto el `ProductModal` (que ya renderiza checkboxes de ingredientes removibles desde `product.ingredients`) por fin los muestra; el cliente puede quitar ingredientes (`removedIngredients` por línea en `POST /api/orders`).
+  - `backend/prisma/seedCatalog.js`: añadida la opción **"Boniato"** (priceDelta 0) al grupo "Elige tu acompañante" de las hamburguesas (ahora Bravas/Fritas/Boniato). Re-seed ejecutado.
+- **Contexto**: la captura del usuario (modal con "Lorem Ipsum"/"Bravas" duplicado y foto) era un mockup de diseño antiguo; la BD real ya tenía 186 ingredientes y 18 grupos de opciones bien formados. El modal real no muestra foto (no hay `<img>`), así que "que no se vea la foto" ya se cumplía.
+- **Verificación**: `GET /api/catalog` → Frank Costello con `ingredients:[Lechuga,Tomate,Pepinillo,Bacon,Queso,Salsa tártara]` y acompañante `Bravas/Fritas/Boniato`. `node --check` OK.
+- **Nota**: re-seedear el catálogo recrea productos con nuevos UUID (referencia blanda desde `OrderLine`). Sin pedidos reales todavía → sin impacto. Tenerlo en cuenta cuando existan pedidos.
+
+### [2026-06-16] frontend-react — Horarios reales en Reservas + fuente única `data/hours.js`
+
+- **Qué cambió**:
+  - `frontend/src/data/hours.js` (nuevo): fuente única de verdad de horarios de apertura. Exporta:
+    - `OPENING_HOURS` — mapa por día JS (0=domingo … 6=sábado), cada entrada lista de rangos `{ open, close }` en 'HH:MM'. Días cerrados = `[]`. Medianoche = `'24:00'`.
+    - `FOOTER_HOURS` — array de filas para la tabla del footer (texto display). Derivado fijo de `OPENING_HOURS`; único lugar donde se define el texto legible.
+    - Helpers: `isOpenDay(dayIndex)`, `closedDayMessage(dayIndex)`, `getSlotsForDay(dayIndex)` (slots cada 30 min, último = cierre − 30 min), `timeToMinutes`, `minutesToTime`.
+  - `frontend/src/components/Footer.jsx`: eliminada la constante `HOURS` local; ahora importa `FOOTER_HOURS` de `data/hours.js`. Markup visual idéntico.
+  - `frontend/src/pages/Reservas.jsx`: refactorizado completo del campo de fecha y hora:
+    - `DEFAULT_DATE` y `TIME_SLOTS` mock eliminados.
+    - Campo `date`: `min` = hoy (formato YYYY-MM-DD calculado en cliente). Validación en `onChange` y en `validate()`: fecha pasada → error; día cerrado (lun/mar) → mensaje `closedDayMessage()`. El `input[type=date]` no puede deshabilitar días específicos nativamente; se valida por cambio + submit.
+    - Campo `time`: slots generados con `getSlotsForDay(dayOfWeek)` via `useMemo([date])`. Si no hay fecha válida → `disabled` con texto "Primero elige un día abierto". Si el usuario cambia fecha a otro día y la hora previa ya no está en los nuevos slots → se resetea y se limpia su error.
+    - Medianoche manejada: `'24:00'` = 1440 min. El último slot de viernes/sábado es `23:30` (1440 − 30 = 1410 min). Correcto.
+    - `role="alert"` añadido a los párrafos de error del formulario (accesibilidad).
+    - Comentario indicando que `POST /api/reservations` validará esto también en el servidor (cliente = UX only).
+- **Por qué**: los slots mock (13:00–16:30 / 19:30–22:30) no coincidían con los horarios reales del negocio. Petición explícita del usuario.
+- **Verificación**: `npm run build` → 82 módulos, 0 errores, 0 warnings.
+- **Supuestos**:
+  - La lógica de parseo de YYYY-MM-DD usa `new Date(y, m-1, d)` (partes numéricas) para evitar el desplazamiento de zona horaria que produce `new Date('YYYY-MM-DD')`.
+  - `FOOTER_HOURS` es un array derivado fijo (no calculado desde `OPENING_HOURS` algorítmicamente) porque las etiquetas de texto del footer ("Miércoles a jueves", etc.) son editoriales y no se pueden generar automáticamente. Si cambian los horarios, hay que actualizar ambas exportaciones de `hours.js`, pero siguen viviendo en el mismo archivo.
+- **Impacto para otros agentes**:
+  - `backend-node`: cuando se implemente `POST /api/reservations`, debe revalidar que `date+time` caen dentro de los horarios reales (los datos de `OPENING_HOURS` son la fuente de verdad para el frontend; el backend necesita su propia copia/lógica equivalente).
+  - `testing-expert`: nuevos casos: (a) elegir lunes → error visible, botón bloqueado; (b) elegir miércoles → slots 18:00–23:00; (c) elegir viernes → slots 18:00–23:30; (d) elegir sábado → slots 11:00–15:30 y 19:00–23:30; (e) elegir domingo → slots 11:00–15:30; (f) cambiar de viernes a domingo → hora previa reseteada si no existe en el nuevo set.
+- **Acción requerida**: ninguna inmediata. El número de WhatsApp sigue siendo placeholder (`34XXXXXXXXX`).
+
+### [2026-06-16] frontend-react — Header reactivo al estado de sesión
+
+- **Qué cambió** (`frontend/src/components/Header.jsx`, `frontend/src/index.css`):
+  - El header consume `useAuth()`. El enlace "Iniciar Sesión" se retiró de `NAV_LINKS` (estático) y ahora el control de sesión es condicional:
+    - No autenticado → enlace "Iniciar Sesión" (`/login`).
+    - Autenticado → saludo "Hola, {firstName}" (clase `.nav-user`, color marca) + botón "Cerrar sesión" (`logout()` → `navigate('/')`). Si `role === 'ADMIN'`, además un enlace "Panel" (`/adminoffice`).
+    - Mientras `loading` (me-check en vuelo) no se renderiza nada para evitar el parpadeo del control incorrecto.
+  - CSS nuevo: `.nav-link--button` (reset de `<button>` para que iguale a un `.nav-link`) y `.nav-user`.
+- **Por qué**: tras login/registro el header seguía mostrando "Iniciar Sesión"; no reflejaba la sesión. Petición del usuario.
+- **Verificación**: `npm run build` OK. Funciona tanto en desktop como en el menú hamburguesa (el control va dentro de `<nav id="main-nav">`).
+
+### [2026-06-16] frontend-react — Registro real conectado a `POST /api/auth/register`
+
+- **Qué cambió**:
+  - `frontend/src/services/authService.js`: nueva `registerRequest(data)` (POST `/api/auth/register`, `credentials: 'include'`). Mapea errores comunes a castellano: 409→"Ya existe una cuenta…", 422→aviso de teléfono/contraseña, 429→demasiados intentos.
+  - `frontend/src/pages/Registro.jsx`: eliminado el submit mock (`console.info('[Registro] Mock submit OK')`). `handleSubmit` ahora es async y llama a `registerRequest` con el contrato real `{ name, apellidos, email, password, phone, consentConditions, consentPrivacy, consentMarketing }`. Tras 201, el backend ya deja la cookie de sesión (auto-login) → `login()` hidrata el estado y el modal de bienvenida lleva al home (`/`).
+  - **Añadido campo de contraseña** (no existía y el backend lo exige): estado `password`, validación min 8, input con `LockIcon` y `autoComplete="new-password"`. Estado `submitting` deshabilita el botón ("Creando cuenta…").
+- **Verificación E2E** (backend local + curl): registro válido → 201 `{ user }` + `Set-Cookie lcn_token` httpOnly SameSite=Lax; usuario persistido en BD (role CUSTOMER, consentimientos guardados); email duplicado → 409. `npm run build` OK.
+- **Notas / pendiente**:
+  - Login ya estaba conectado; ahora Registro también. Falta el flujo de "recuperar contraseña" (sin endpoint).
+  - El backend exige teléfono español válido (`libphonenumber-js`, ES) y password 8–72; la validación de cliente es laxa y el servidor re-valida (muestra el 422 mapeado).
+  - RGPD: contraseña y datos personales nunca se loguean.
+
+### [2026-06-16] frontend-react — Google SSO integrado en Login y Registro
+
+- **Qué cambió**:
+
+  **Ficheros nuevos:**
+  - `frontend/src/components/GoogleSignInButton.jsx`: componente reutilizable que carga el script de Google Identity Services dinámicamente (tolerante a doble carga), inicializa `google.accounts.id` con `VITE_GOOGLE_CLIENT_ID`, renderiza el botón oficial GIS (`renderButton`), llama a `googleLoginRequest()` en el callback y expone `onSuccess(data)` / `onError(message)` al padre. Si `VITE_GOOGLE_CLIENT_ID` está vacío, no renderiza nada (sin error). Flujo popup (`ux_mode: 'popup'`).
+  - `frontend/.env.example`: nuevo fichero con `VITE_API_URL` y `VITE_GOOGLE_CLIENT_ID` documentadas. Instrucciones para obtener el Client ID en Google Cloud Console y los orígenes a añadir (`http://localhost:5173`, `https://jrero99.github.io`).
+
+  **Ficheros modificados:**
+  - `frontend/src/services/authService.js`: nueva función `googleLoginRequest(credential)` — `POST /api/auth/google` con `credentials: 'include'`. Mensajes de error localizados por código HTTP (401/403/422/429/503). El credential se descarta tras el envío.
+  - `frontend/src/pages/Login.jsx`: importa `GoogleSignInButton`; añade `handleGoogleSuccess()` que llama a `login()` (hidrata `AuthContext` via `GET /api/auth/me`) y redirige a `location.state.from` o `/`. El botón y el separador "o" se renderizan antes del formulario de email/contraseña.
+  - `frontend/src/pages/Registro.jsx`: ídem; `handleGoogleSuccess()` navega a `/` (el backend hace find-or-create, no es necesario el modal de bienvenida). Añadido `serverError` state para errores de Google SSO.
+  - `frontend/src/index.css`: nuevas clases `.auth-sso-separator`, `.google-signin-wrapper`, `.google-signin-button-container`, `.google-signin-loading`.
+  - `frontend/index.html`: `<script src="https://accounts.google.com/gsi/client" async defer>` añadido en `<head>`. El componente también tolera que el script no esté cargado aún (espera el evento `load`).
+
+- **Por qué**: Integración del endpoint `POST /api/auth/google` implementado por `backend-node` (entrada del 2026-06-16).
+
+- **Flujo de usuario**:
+  1. El usuario accede a `/login` o `/registro`.
+  2. Ve el botón oficial de Google encima del formulario de email/contraseña.
+  3. Al pulsar, se abre el popup de selección de cuenta de Google.
+  4. Google devuelve un ID token al callback del componente.
+  5. `googleLoginRequest` hace `POST /api/auth/google { credential }` con `credentials: 'include'`.
+  6. El backend verifica el token, hace find-or-create y setea la cookie JWT httpOnly.
+  7. El componente llama a `onSuccess(data)`, que invoca `login()` en `AuthContext` → `GET /api/auth/me`.
+  8. La app redirige al destino original (ruta guardada por `ProtectedRoute`) o a `/`.
+  - En caso de error: el mensaje del servidor (o el texto localizado por código HTTP) se muestra en el `<p role="alert">` ya existente en cada página. El formulario de email/contraseña sigue disponible.
+  - Si `VITE_GOOGLE_CLIENT_ID` no está configurado: el botón no aparece, sin error ni excepción. La página funciona exactamente igual que antes del cambio.
+
+- **Supuestos / pendiente**:
+  - El OAuth 2.0 Web Client ID debe crearse en Google Cloud Console y añadirse a `.env.local` como `VITE_GOOGLE_CLIENT_ID` y al `.env` del backend como `GOOGLE_CLIENT_ID`.
+  - En producción (GitHub Pages), el botón solo funcionará una vez que el backend esté desplegado con `GOOGLE_CLIENT_ID` configurado.
+  - Si el usuario bloquea el script de Google (uBlock, Firefox Enhanced Privacy), el botón no aparece y el formulario de email/contraseña funciona normalmente.
+  - RGPD (deuda existente): usuarios creados por SSO tienen `acceptedTerms/Privacy: true` automáticamente sin consentimiento explícito. Bloqueante legal antes de producción (registrado en riesgos abiertos).
+
+- **Impacto para otros agentes**:
+  - `testing-expert`: nuevos casos a cubrir: (1) `VITE_GOOGLE_CLIENT_ID` ausente → botón no renderizado; (2) Google SSO exitoso → sesión hidratada y redirección; (3) token inválido → mensaje de error visible; (4) backend 503 → mensaje de error localizado.
+  - `qa-expert`: verificar en móvil que el popup de Google no queda cortado; verificar que el separador "o" es visible a 360px; target ≥44px en el botón oficial de GIS.
+
+- **Acción requerida**:
+  - Configurar `VITE_GOOGLE_CLIENT_ID` en `.env.local` del frontend y `GOOGLE_CLIENT_ID` en `.env` del backend.
+  - Google Cloud Console: crear/configurar el Web Client ID con los orígenes autorizados (ver `.env.example`).
+
+- **Build verificado**: `npm run build` → 0 errores, 0 warnings. 81 módulos transformados.
+
+### [2026-06-16] backend-node — Google SSO: `POST /api/auth/google` + modelo híbrido
+
+- **Qué cambió**:
+
+  **Modelo de datos (`prisma/schema.prisma`)**
+  - `passwordHash` ahora es **nullable** (`String?`): usuarios creados solo con Google no tienen contraseña local.
+  - Nuevo campo `googleId String? @unique @map("google_id")`: el `sub` del token de Google. Null para usuarios de contraseña que nunca han vinculado Google.
+  - Nuevo enum `AuthProvider { PASSWORD GOOGLE }` y campo `provider AuthProvider @default(PASSWORD)` en `User`. Híbrido: si un usuario de contraseña vincula Google, `provider` queda como `PASSWORD` pero `googleId` se rellena (puede entrar por ambas vías).
+  - Migración: `prisma/migrations/20260616000000_add_google_sso/migration.sql`. Aplicada (`prisma migrate deploy`). Prisma client regenerado.
+
+  **Ficheros nuevos/modificados en `backend/`**:
+  - `src/services/authService.js` — nueva función `loginWithGoogle(credential)`: verifica el ID token con `OAuth2Client.verifyIdToken`, extrae `sub/email/email_verified/name`, implementa la lógica find-or-create (ver decisión de vinculación abajo). El bloque `login()` por contraseña ahora rechaza con `401` usuarios sin `passwordHash` (Google-only) manteniendo el mensaje genérico (no revela la causa).
+  - `src/controllers/authController.js` — nuevo handler `googleAuth`: parsea con `googleAuthSchema`, llama a `loginWithGoogle`, emite la misma cookie JWT httpOnly que `login`. El credential nunca se logea (RGPD).
+  - `src/routes/auth.js` — nueva ruta `POST /api/auth/google` con `googleAuthLimiter`. No usa honeypot (no es un formulario HTML).
+  - `src/validators/auth.js` — nuevo `googleAuthSchema`: valida `credential` (string, 100–4096 chars).
+  - `src/middleware/rateLimiter.js` — nuevo `googleAuthLimiter`: 10 req/IP cada 15 min.
+  - `src/config/env.js` — nuevo campo `googleClientId` (opcional en dev, `null` si no está). Si no está configurado, el endpoint devuelve `503`.
+  - `.env.example` — nueva variable `GOOGLE_CLIENT_ID` documentada.
+  - `package.json` — nueva dependencia `google-auth-library` instalada (`npm install`).
+
+  **Decisión de vinculación por email** (documentada también en `authService.js`):
+  - Si hay usuario con ese `googleId` → login directo.
+  - Si hay usuario con ese `email` (registrado por contraseña) → se vincula setando `googleId`; el usuario puede loguear por ambas vías. Esto evita cuentas duplicadas.
+  - Si no existe → se crea con `role: CUSTOMER`, `provider: GOOGLE`, `passwordHash: null`. NUNCA puede crearse un ADMIN por esta vía.
+
+- **Por qué**: Petición explícita del usuario. Añadir SSO con Google manteniendo la sesión unificada (misma cookie JWT httpOnly).
+
+- **Contrato del endpoint nuevo**:
+
+  ```
+  POST /api/auth/google
+  Content-Type: application/json
+  Body: { "credential": "<google_id_token_string>" }
+
+  Respuesta 200 OK (login o registro exitoso):
+  Set-Cookie: lcn_token=<jwt>; HttpOnly; SameSite=Lax; Path=/; [Secure en prod]
+  { "user": { "id": "uuid", "email": "...", "name": "Nombre Apellido", "role": "CUSTOMER" } }
+
+  Errores:
+    422  — body inválido (credential ausente o fuera de longitud)
+    401  — token de Google inválido o expirado
+    403  — email no verificado por Google | cuenta eliminada (soft-delete)
+    429  — rate limit (10 req/IP/15min)
+    503  — GOOGLE_CLIENT_ID no configurado en el servidor
+  ```
+
+- **Variables de entorno nuevas**:
+  - `GOOGLE_CLIENT_ID` (backend `.env`): OAuth 2.0 Web Client ID de Google Cloud Console. Opcional en dev (el endpoint devuelve 503 si falta).
+  - El frontend también necesita el mismo valor como **`VITE_GOOGLE_CLIENT_ID`** (public, seguro de exponer) para inicializar Google Identity Services en el cliente.
+
+- **Qué necesita el frontend para integrar**:
+  1. Cargar el script de Google Identity Services: `<script src="https://accounts.google.com/gsi/client" async>`.
+  2. Inicializar con `google.accounts.id.initialize({ client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID, callback: handleCredentialResponse })`.
+  3. En `handleCredentialResponse(response)`: hacer `POST /api/auth/google` con body `{ credential: response.credential }` y `credentials: 'include'`.
+  4. Tras respuesta 200, re-hidratar el `AuthContext` con `GET /api/auth/me` (igual que el flujo de login por contraseña ya hace en `Login.jsx`).
+  5. El botón visual puede ser el botón de Google (`google.accounts.id.renderButton`) o un botón custom que dispare `google.accounts.id.prompt()`.
+
+- **Impacto para otros agentes**:
+  - `frontend-react`: implementar el botón de "Continuar con Google" en `Login.jsx` y `Registro.jsx`. Necesita `VITE_GOOGLE_CLIENT_ID` en `.env.local`. El flujo post-login es idéntico al actual (cookie + `GET /api/auth/me`).
+  - `testing-expert`: tests de integración nuevos: (1) token válido → 200 + cookie; (2) token inválido → 401; (3) `email_verified: false` → 403; (4) usuario existente con mismo email → vincula googleId, no crea duplicado; (5) sin `GOOGLE_CLIENT_ID` configurado → 503.
+  - `security-expert`: revisar que `audience` en `verifyIdToken` está fijado al `GOOGLE_CLIENT_ID` correcto (ya implementado). El token nunca se logea. El endpoint no acepta el payload del token directamente del cliente.
+
+- **Acción requerida**:
+  - `frontend-react`: añadir botón de Google SSO en páginas de login/registro.
+  - Configurar el OAuth 2.0 Web Client en Google Cloud Console y añadir `GOOGLE_CLIENT_ID` al `.env` del backend y `VITE_GOOGLE_CLIENT_ID` al `.env.local` del frontend.
+  - En Google Cloud Console: añadir `http://localhost:5173` y `https://jrero99.github.io` como orígenes JavaScript autorizados.
 
 ### [2026-06-14] frontend-react — Catálogo dinámico: `fetchCatalog()` consume `GET /api/catalog`
 

@@ -7,6 +7,8 @@
 // RGPD note: user data returned by these endpoints (email, addresses, phone)
 // must NOT be logged to the console.
 
+import { notifyUnauthorized } from './sessionEvents.js'
+
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
 // ── Internal helper ────────────────────────────────────────────────────────────
@@ -22,6 +24,10 @@ async function adminFetch(path, options = {}) {
   })
 
   if (!res.ok) {
+    // A 401 from any admin endpoint means the session has expired or the cookie
+    // is no longer valid. Signal AuthContext to clear the user state.
+    if (res.status === 401) notifyUnauthorized()
+
     let msg = `Admin API error ${res.status}`
     try {
       const data = await res.json()

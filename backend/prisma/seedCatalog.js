@@ -77,6 +77,7 @@ const BURGER_OPTION_GROUPS = [
     choices: [
       { label: 'Bravas',  priceDelta: 0, sortOrder: 0, available: true },
       { label: 'Fritas',  priceDelta: 0, sortOrder: 1, available: true },
+      { label: 'Boniato', priceDelta: 0, sortOrder: 2, available: true },
     ],
   },
   {

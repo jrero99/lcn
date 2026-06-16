@@ -20,4 +20,8 @@ export const config = {
   corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:5173')
     .split(',')
     .map((o) => o.trim()),
+
+  // Google SSO — optional in dev (endpoint will return 503 if not set).
+  // Required in production. Set to your OAuth 2.0 Web Client ID from Google Cloud Console.
+  googleClientId: process.env.GOOGLE_CLIENT_ID || null,
 }

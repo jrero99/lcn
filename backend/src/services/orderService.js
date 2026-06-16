@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma.js'
 import { httpError } from '../utils/httpError.js'
 import { normalizePhone } from './authService.js'
+import { resolveAddressForOrder, buildAddressSnapshot } from './addressService.js'
 
 /**
  * Checks the blacklist for the given phone, address, and email.
@@ -81,7 +82,7 @@ export async function createOrder(userId, data) {
     timing,
     scheduledFor,
     items,
-    address,
+    addressId,
     contactPhone,
     notes,
   } = data
@@ -107,15 +108,22 @@ export async function createOrder(userId, data) {
   // Normalize contact phone (must be valid Spanish number)
   const normalizedPhone = normalizePhone(contactPhone)
 
-  const addressStr =
-    mode === 'DELIVERY' && address
-      ? `${address.street}, ${address.postalCode} ${address.city}`
-      : null
+  // 3. Resolve delivery address (DELIVERY only)
+  //    resolveAddressForOrder validates ownership and throws 400 if invalid.
+  let resolvedAddress = null
+  let addressStr = null
+  if (mode === 'DELIVERY') {
+    // addressId is guaranteed non-null here because the Zod schema already
+    // enforced it for DELIVERY mode. Belt-and-suspenders check just in case.
+    if (!addressId) throw httpError(400, 'addressId is required for DELIVERY orders')
+    resolvedAddress = await resolveAddressForOrder(userId, addressId)
+    addressStr = buildAddressSnapshot(resolvedAddress)
+  }
 
-  // 3. Blacklist check
+  // 4. Blacklist check
   await checkBlacklist(normalizedPhone, addressStr, user.email)
 
-  // 4. Server-side total recalculation — NEVER trust the client total
+  // 5. Server-side total recalculation — NEVER trust the client total
   let calculatedTotal = 0
   const resolvedLines = await Promise.all(
     items.map(async (item) => {
@@ -147,15 +155,15 @@ export async function createOrder(userId, data) {
     })
   )
 
-  // 5. Fraud detection heuristics
+  // 6. Fraud detection heuristics
   const fraudFlags = await detectFraudFlags(normalizedPhone, addressStr)
 
-  // 6. All orders start PENDING — the admin manually confirms or cancels.
+  // 7. All orders start PENDING — the admin manually confirms or cancels.
   // Auto-confirmation logic was explicitly removed per user decision (2026-06-14).
   // Fraud flags are attached so the admin can act on them.
   const status = 'PENDING'
 
-  // 7. Create the order with all lines in a single transaction
+  // 8. Create the order with all lines in a single transaction
   const order = await prisma.$transaction(async (tx) => {
     const created = await tx.order.create({
       data: {
@@ -166,7 +174,11 @@ export async function createOrder(userId, data) {
         timing: timing ?? 'ASAP',
         scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
         contactPhone: normalizedPhone,
+        // Snapshot: immutable copy of the address text at order creation time.
+        // Follows the same pattern as productNameSnapshot in OrderLine.
         deliveryAddress: addressStr,
+        // Soft FK for traceability — survives address soft-delete.
+        addressId: resolvedAddress ? resolvedAddress.id : null,
         total: calculatedTotal,
         idempotencyKey,
         notes: notes ?? null,

@@ -1,10 +1,5 @@
-import { useState } from 'react'
-
-// Mock time slots: lunch (13:00–16:30) and dinner (19:30–22:30), every 30 min.
-const TIME_SLOTS = [
-  '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-  '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30',
-]
+import { useState, useMemo } from 'react'
+import { isOpenDay, closedDayMessage, getSlotsForDay } from '../data/hours.js'
 
 // Mock zones for the restaurant.
 const ZONES = [
@@ -13,18 +8,34 @@ const ZONES = [
   { value: 'barra', label: 'Barra' },
 ]
 
-// Mock guest counts: 1–6. Groups ≥7 go via WhatsApp (shown in footer text).
+// Mock guest counts: 1–6. Groups ≥7 go via WhatsApp (shown below the form).
 const GUEST_OPTIONS = [1, 2, 3, 4, 5, 6]
 
-// Default date: 18/07/2026 formatted as YYYY-MM-DD for the date input.
-const DEFAULT_DATE = '2026-07-18'
+// Earliest selectable date: today in YYYY-MM-DD (local time).
+function todayIso() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+const TODAY_ISO = todayIso()
 
 // WhatsApp link — TODO: replace with real phone number once provided by the business.
 // Format: https://wa.me/<country-code><number> (no spaces, no +)
 const WHATSAPP_HREF = 'https://wa.me/34XXXXXXXXX' // TODO: add real number
 
+// Returns the JS day-of-week (0=Sunday … 6=Saturday) for a YYYY-MM-DD string.
+// We parse the parts directly to avoid timezone shifts that `new Date(str)` causes.
+function dayOfWeekFromIso(iso) {
+  const [y, m, d] = iso.split('-').map(Number)
+  // Month is 0-indexed in Date constructor.
+  return new Date(y, m - 1, d).getDay()
+}
+
 export default function Reservas() {
-  const [date, setDate] = useState(DEFAULT_DATE)
+  const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [zone, setZone] = useState('')
   const [guests, setGuests] = useState('')
@@ -32,12 +43,84 @@ export default function Reservas() {
   // 'idle' | 'searching' — placeholder state for the future modal.
   const [searchState, setSearchState] = useState('idle')
 
+  // Derive time slots from the selected date. Recomputed only when date changes.
+  const timeSlots = useMemo(() => {
+    if (!date) return []
+    const dow = dayOfWeekFromIso(date)
+    return getSlotsForDay(dow)
+  }, [date])
+
+  // True when a date is chosen and the restaurant is open that day.
+  const dateIsOpenDay = date ? isOpenDay(dayOfWeekFromIso(date)) : false
+
+  // Handle date change: validate the chosen day and reset time if needed.
+  function handleDateChange(e) {
+    const newDate = e.target.value
+    setDate(newDate)
+    setSearchState('idle')
+
+    // Build the error (or clear it).
+    let dateError = undefined
+    if (newDate) {
+      if (newDate < TODAY_ISO) {
+        dateError = 'No puedes reservar en una fecha pasada.'
+      } else {
+        const dow = dayOfWeekFromIso(newDate)
+        if (!isOpenDay(dow)) {
+          dateError = closedDayMessage(dow)
+        }
+      }
+    }
+
+    setErrors((prev) => {
+      const next = { ...prev }
+      if (dateError) {
+        next.date = dateError
+      } else {
+        delete next.date
+      }
+      return next
+    })
+
+    // If the date changed, check whether the currently selected time is still
+    // valid for the new set of slots. If not, reset it.
+    if (time) {
+      const newDow = newDate ? dayOfWeekFromIso(newDate) : -1
+      const newSlots = newDate ? getSlotsForDay(newDow) : []
+      if (!newSlots.includes(time)) {
+        setTime('')
+        // Clear any lingering time error — user will pick a new slot.
+        setErrors((prev) => {
+          const next = { ...prev }
+          delete next.time
+          return next
+        })
+      }
+    }
+  }
+
   function validate() {
     const next = {}
-    if (!date) next.date = 'Elige una fecha'
+
+    if (!date) {
+      next.date = 'Elige una fecha'
+    } else if (date < TODAY_ISO) {
+      next.date = 'No puedes reservar en una fecha pasada.'
+    } else {
+      const dow = dayOfWeekFromIso(date)
+      if (!isOpenDay(dow)) {
+        next.date = closedDayMessage(dow)
+      }
+    }
+
     if (!time) next.time = 'Elige una hora'
     if (!zone) next.zone = 'Elige la zona'
     if (!guests) next.guests = 'Indica el número de personas'
+
+    // NOTE: the backend (POST /api/reservations) will also validate that the
+    // chosen date and time fall within opening hours. Client-side checks here
+    // are UX only and must never be the sole line of defence.
+
     return next
   }
 
@@ -47,13 +130,14 @@ export default function Reservas() {
     setErrors(errs)
     if (Object.keys(errs).length > 0) return
 
-    // All fields are filled — show searching placeholder state.
+    // All fields are filled and valid — show searching placeholder state.
     setSearchState('searching')
 
     // TODO: abrir modal HORAS DISPONIBLES (iteración futura)
     // When the modal is built, this is where we would call:
     //   openAvailabilityModal({ date, time, zone, guests })
     // and the modal would show the available slots for the selected criteria.
+    // Integration point: POST /api/reservations → { availableSlots[] }
   }
 
   function handleFieldChange(setter, field) {
@@ -71,6 +155,9 @@ export default function Reservas() {
       setSearchState('idle')
     }
   }
+
+  // The time selector is disabled when no (valid open) date is chosen.
+  const timeDisabled = !date || !dateIsOpenDay
 
   return (
     <section className="reservas">
@@ -96,12 +183,13 @@ export default function Reservas() {
                   id="res-date"
                   type="date"
                   value={date}
-                  onChange={handleFieldChange(setDate, 'date')}
+                  min={TODAY_ISO}
+                  onChange={handleDateChange}
                   aria-describedby={errors.date ? 'res-date-error' : undefined}
                 />
               </label>
               {errors.date && (
-                <p id="res-date-error" className="field-error">
+                <p id="res-date-error" className="field-error" role="alert">
                   {errors.date}
                 </p>
               )}
@@ -115,16 +203,25 @@ export default function Reservas() {
                   id="res-time"
                   value={time}
                   onChange={handleFieldChange(setTime, 'time')}
+                  disabled={timeDisabled}
                   aria-describedby={errors.time ? 'res-time-error' : undefined}
                 >
-                  <option value="" disabled>Hora</option>
-                  {TIME_SLOTS.map((slot) => (
-                    <option key={slot} value={slot}>{slot}</option>
-                  ))}
+                  {timeDisabled ? (
+                    <option value="" disabled>
+                      Primero elige un día abierto
+                    </option>
+                  ) : (
+                    <>
+                      <option value="" disabled>Hora</option>
+                      {timeSlots.map((slot) => (
+                        <option key={slot} value={slot}>{slot}</option>
+                      ))}
+                    </>
+                  )}
                 </select>
               </label>
               {errors.time && (
-                <p id="res-time-error" className="field-error">
+                <p id="res-time-error" className="field-error" role="alert">
                   {errors.time}
                 </p>
               )}
@@ -147,7 +244,7 @@ export default function Reservas() {
                 </select>
               </label>
               {errors.zone && (
-                <p id="res-zone-error" className="field-error">
+                <p id="res-zone-error" className="field-error" role="alert">
                   {errors.zone}
                 </p>
               )}
@@ -172,7 +269,7 @@ export default function Reservas() {
                 </select>
               </label>
               {errors.guests && (
-                <p id="res-guests-error" className="field-error">
+                <p id="res-guests-error" className="field-error" role="alert">
                   {errors.guests}
                 </p>
               )}
