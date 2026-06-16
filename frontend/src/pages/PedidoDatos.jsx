@@ -2,14 +2,19 @@
 //
 // El modo ("recoger" | "domicilio") llega por query param (?mode=...).
 //
+// LÓGICA DE AUTENTICACIÓN (GAP-5):
+//  - Login obligatorio para AMBOS modos. Sin sesión → redirige a /login con state.from.
+//    Esto evita que el usuario avance sin sesión y pierda el carrito al llegar a
+//    OrderConfirmation (que también requiere sesión).
+//
 // LÓGICA DE DIRECCIÓN:
 //  - Modo "recoger": NO se pide dirección.
 //  - Modo "domicilio":
-//      · Si no hay sesión activa → redirige a /login con state.from preservado.
 //      · Si hay sesión → carga las direcciones del usuario vía GET /api/addresses
 //        (delegado a <AddressManager>).
 //      · El usuario selecciona una dirección existente o crea una nueva.
-//      · El botón "Continuar" queda bloqueado hasta que haya una dirección seleccionada.
+//      · El botón "Continuar" queda bloqueado hasta que haya una dirección seleccionada
+//        Y no haya un formulario de alta/edición abierto (BUG-1).
 //      · PROHIBIDO rellenar direcciones automáticamente (sin geolocalización).
 //
 // ESTADO QUE SE PROPAGA:
@@ -33,6 +38,8 @@ export default function PedidoDatos() {
   // For domicilio: the selected address UUID and its formatted label
   const [selectedAddressId, setSelectedAddressId] = useState(null)
   const [selectedAddressLabel, setSelectedAddressLabel] = useState('')
+  // BUG-1: track whether AddressManager has an unsaved form open
+  const [addressFormOpen, setAddressFormOpen] = useState(false)
 
   const [timing, setTiming] = useState('') // 'programar' | 'asap'
   const [age, setAge] = useState('') // 'yes' | 'no'
@@ -51,14 +58,15 @@ export default function PedidoDatos() {
     )
   }
 
-  // For domicilio: require authentication.
-  // Redirect to login preserving the current path so the user can come back.
-  if (mode === 'domicilio' && !isAuthenticated) {
+  // GAP-5: require authentication for ALL modes (recoger and domicilio).
+  // Redirecting here (before the catalog) prevents the user from losing
+  // their cart when they reach OrderConfirmation without a session.
+  if (!isAuthenticated) {
     return (
       <Navigate
         to="/login"
         replace
-        state={{ from: `/hacer-pedido/datos?mode=domicilio` }}
+        state={{ from: `/hacer-pedido/datos?mode=${mode}` }}
       />
     )
   }
@@ -111,11 +119,17 @@ export default function PedidoDatos() {
                 }
               }}
               onSelectAddress={(addr) => {
+                // BUG-3: addr is null when the selected address is deleted — clear the label
+                if (!addr) {
+                  setSelectedAddressLabel('')
+                  return
+                }
                 // Keep a formatted label so it can be shown in the checkout bar
                 setSelectedAddressLabel(
                   (addr.label ? addr.label + ' — ' : '') + formatAddress(addr)
                 )
               }}
+              onFormOpenChange={setAddressFormOpen}
               showHeading={false}
             />
             {errors.address && (
@@ -184,17 +198,23 @@ export default function PedidoDatos() {
         </div>
 
         {/* Blocked state hint */}
-        {mode === 'domicilio' && !selectedAddressId && (
+        {mode === 'domicilio' && !selectedAddressId && !addressFormOpen && (
           <p className="datos-address-hint" role="status">
             Selecciona o añade una dirección de entrega para poder continuar.
+          </p>
+        )}
+        {/* BUG-1: also block while an add/edit form inside AddressManager is open */}
+        {mode === 'domicilio' && addressFormOpen && (
+          <p className="datos-address-hint" role="status">
+            Guarda o cancela la dirección antes de continuar.
           </p>
         )}
 
         <button
           type="submit"
           className="btn-continue"
-          disabled={mode === 'domicilio' && !selectedAddressId}
-          aria-disabled={mode === 'domicilio' && !selectedAddressId}
+          disabled={mode === 'domicilio' && (!selectedAddressId || addressFormOpen)}
+          aria-disabled={mode === 'domicilio' && (!selectedAddressId || addressFormOpen)}
         >
           Continuar
         </button>

@@ -392,8 +392,11 @@ export default function AddressManager({
     setDeleteError('')
     try {
       await deleteAddress(deleteModal.id)
-      // If the deleted address was selected, deselect it
-      if (onSelect && selectedId === deleteModal.id) onSelect(null)
+      // If the deleted address was selected, deselect it and clear the label (BUG-3)
+      if (selectedId === deleteModal.id) {
+        if (onSelect) onSelect(null)
+        if (onSelectAddress) onSelectAddress(null)
+      }
       setAddresses((prev) => prev.filter((a) => a.id !== deleteModal.id))
       setDeleteModal({ open: false, id: null, label: '' })
     } catch (err) {
