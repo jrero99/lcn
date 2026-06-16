@@ -37,3 +37,17 @@ export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
   password: z.string().min(1).max(72),
 })
+
+/**
+ * Google SSO endpoint — POST /api/auth/google
+ * The frontend sends the ID token returned by Google Identity Services.
+ * The backend verifies it with google-auth-library; never trust payload from client.
+ */
+export const googleAuthSchema = z.object({
+  // Google ID token (JWT signed by Google). Typical length is ~1100–2000 chars.
+  credential: z
+    .string()
+    .trim()
+    .min(100, 'Invalid Google credential')
+    .max(4096, 'Credential too long'),
+})

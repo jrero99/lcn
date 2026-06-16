@@ -37,3 +37,14 @@ export const orderLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 })
+
+// POST /api/auth/google — 5 req/IP per 15 min
+// Mirrors loginLimiter: this endpoint issues the same JWT session cookie, so it
+// must not be a more permissive path to authentication than password login.
+export const googleAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  handler: json429,
+  standardHeaders: true,
+  legacyHeaders: false,
+})

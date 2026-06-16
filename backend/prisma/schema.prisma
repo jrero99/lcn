@@ -79,6 +79,19 @@ enum BlacklistType {
 }
 
 // =============================================================================
+// ENUMS (auth provider)
+// =============================================================================
+
+/// How the user authenticates.
+/// PASSWORD = email + password (default).
+/// GOOGLE   = Google SSO via ID token verification (no local password).
+/// A user can have both if they first registered with password and later link Google.
+enum AuthProvider {
+  PASSWORD
+  GOOGLE
+}
+
+// =============================================================================
 // USUARIOS Y SESIONES
 // =============================================================================
 
@@ -89,7 +102,8 @@ model User {
   /// Requiere: CREATE EXTENSION IF NOT EXISTS citext;
   email        String   @unique @db.Citext
   /// bcrypt cost>=12 o argon2id. NUNCA en texto plano ni en logs.
-  passwordHash String   @map("password_hash")
+  /// Nullable: users who sign up via Google SSO have no local password.
+  passwordHash String?  @map("password_hash")
   firstName    String   @map("first_name")
   lastName     String   @map("last_name")
   /// Normalizado a E.164 con libphonenumber-js. Solo telefonos validos en Espanya.
@@ -97,6 +111,18 @@ model User {
   /// true tras completar el flujo OTP.
   /// Campo preparado para uso futuro — OTP SMS pendiente de proveedor.
   phoneVerified Boolean @default(false) @map("phone_verified")
+
+  /// Google SSO: the `sub` claim from the verified Google ID token.
+  /// Unique so that duplicate SSO sign-ins are impossible.
+  /// Null for users who registered via email+password and have never linked Google.
+  googleId String? @unique @map("google_id")
+
+  /// How this user authenticated when they first created their account.
+  /// GOOGLE users have googleId set and passwordHash null.
+  /// PASSWORD users (default) have passwordHash set.
+  /// Hybrid: if a PASSWORD user later links Google, provider stays PASSWORD
+  /// but googleId is populated. This lets them log in via either method.
+  provider AuthProvider @default(PASSWORD)
 
   role Role @default(CUSTOMER)
 
@@ -124,6 +150,7 @@ model User {
 
   @@index([phone])
   @@index([deletedAt])
+  @@index([googleId])
   @@map("users")
 }
 
