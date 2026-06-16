@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import Logo from './Logo.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
 
 // Navigation links.
 // - `to`   : internal SPA route → rendered as <Link> (no full-page reload).
 // - `href` : home-section anchor → rendered as <a>.
+// The auth control (Iniciar Sesión / saludo + Cerrar sesión) is rendered
+// separately below, driven by the auth state.
 const NAV_LINKS = [
   { label: 'La Carta',             to: '/carta' },
   { label: 'Trabaja con Nosotros', to: '/trabaja' },
-  { label: 'Iniciar Sesión',       to: '/login' },
 ]
 
 // Hamburger icon (three bars / close X) — inline SVG, no dependency.
@@ -34,7 +36,14 @@ function HamburgerIcon({ open }) {
 export default function Header() {
   const [navOpen, setNavOpen] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
   const headerRef = useRef(null)
+  const { isAuthenticated, user, loading, logout } = useAuth()
+
+  async function handleLogout() {
+    await logout()
+    navigate('/')
+  }
 
   // Keep --header-h CSS variable in sync with the actual rendered header height.
   // This lets the sticky cat-nav (top: var(--header-h)) stay correctly positioned
@@ -103,6 +112,28 @@ export default function Header() {
             <a key={link.label} className="nav-link" href={link.href}>
               {link.label}
             </a>
+          )
+        )}
+
+        {/* Auth control — reflects the session state.
+            While loading we render nothing to avoid flashing the wrong control. */}
+        {!loading && (
+          isAuthenticated ? (
+            <>
+              {user?.role === 'ADMIN' && (
+                <Link className="nav-link" to="/adminoffice">Panel</Link>
+              )}
+              <span className="nav-user">Hola, {user?.firstName}</span>
+              <button
+                type="button"
+                className="nav-link nav-link--button"
+                onClick={handleLogout}
+              >
+                Cerrar sesión
+              </button>
+            </>
+          ) : (
+            <Link className="nav-link" to="/login">Iniciar Sesión</Link>
           )
         )}
       </nav>

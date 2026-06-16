@@ -112,6 +112,23 @@ h1, h2, h3, h4 {
   transition: color 0.15s ease;
 }
 .nav-link:hover { color: var(--brand); }
+/* A <button> that should look and sit exactly like a .nav-link (e.g. logout). */
+.nav-link--button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+/* Logged-in greeting — same type scale as nav links but in brand colour so it
+   reads as a status, not a link. */
+.nav-user {
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand);
+  white-space: nowrap;
+}
 .header-actions { display: flex; gap: 0.6rem; }
 
 /* Hamburger button: hidden on desktop, shown by media query */

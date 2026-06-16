@@ -73,6 +73,29 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 
 ## Bitácora
 
+### [2026-06-16] frontend-react — Header reactivo al estado de sesión
+
+- **Qué cambió** (`frontend/src/components/Header.jsx`, `frontend/src/index.css`):
+  - El header consume `useAuth()`. El enlace "Iniciar Sesión" se retiró de `NAV_LINKS` (estático) y ahora el control de sesión es condicional:
+    - No autenticado → enlace "Iniciar Sesión" (`/login`).
+    - Autenticado → saludo "Hola, {firstName}" (clase `.nav-user`, color marca) + botón "Cerrar sesión" (`logout()` → `navigate('/')`). Si `role === 'ADMIN'`, además un enlace "Panel" (`/adminoffice`).
+    - Mientras `loading` (me-check en vuelo) no se renderiza nada para evitar el parpadeo del control incorrecto.
+  - CSS nuevo: `.nav-link--button` (reset de `<button>` para que iguale a un `.nav-link`) y `.nav-user`.
+- **Por qué**: tras login/registro el header seguía mostrando "Iniciar Sesión"; no reflejaba la sesión. Petición del usuario.
+- **Verificación**: `npm run build` OK. Funciona tanto en desktop como en el menú hamburguesa (el control va dentro de `<nav id="main-nav">`).
+
+### [2026-06-16] frontend-react — Registro real conectado a `POST /api/auth/register`
+
+- **Qué cambió**:
+  - `frontend/src/services/authService.js`: nueva `registerRequest(data)` (POST `/api/auth/register`, `credentials: 'include'`). Mapea errores comunes a castellano: 409→"Ya existe una cuenta…", 422→aviso de teléfono/contraseña, 429→demasiados intentos.
+  - `frontend/src/pages/Registro.jsx`: eliminado el submit mock (`console.info('[Registro] Mock submit OK')`). `handleSubmit` ahora es async y llama a `registerRequest` con el contrato real `{ name, apellidos, email, password, phone, consentConditions, consentPrivacy, consentMarketing }`. Tras 201, el backend ya deja la cookie de sesión (auto-login) → `login()` hidrata el estado y el modal de bienvenida lleva al home (`/`).
+  - **Añadido campo de contraseña** (no existía y el backend lo exige): estado `password`, validación min 8, input con `LockIcon` y `autoComplete="new-password"`. Estado `submitting` deshabilita el botón ("Creando cuenta…").
+- **Verificación E2E** (backend local + curl): registro válido → 201 `{ user }` + `Set-Cookie lcn_token` httpOnly SameSite=Lax; usuario persistido en BD (role CUSTOMER, consentimientos guardados); email duplicado → 409. `npm run build` OK.
+- **Notas / pendiente**:
+  - Login ya estaba conectado; ahora Registro también. Falta el flujo de "recuperar contraseña" (sin endpoint).
+  - El backend exige teléfono español válido (`libphonenumber-js`, ES) y password 8–72; la validación de cliente es laxa y el servidor re-valida (muestra el 422 mapeado).
+  - RGPD: contraseña y datos personales nunca se loguean.
+
 ### [2026-06-16] frontend-react — Google SSO integrado en Login y Registro
 
 - **Qué cambió**:
