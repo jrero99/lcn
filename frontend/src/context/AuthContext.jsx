@@ -26,6 +26,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { getMeRequest, logoutRequest } from '../services/authService.js'
+import { onUnauthorized } from '../services/sessionEvents.js'
 
 const AuthContext = createContext(null)
 
@@ -56,6 +57,19 @@ export function AuthProvider({ children }) {
       })
 
     return () => { cancelled = true }
+  }, [])
+
+  // Listen for 401 signals from any authenticated service call.
+  // When any protected endpoint returns 401, the session cookie has expired
+  // or been invalidated server-side. We clear user state so the UI immediately
+  // reflects the logged-out status (header saludo disappears, guards redirect).
+  // We do NOT call logoutRequest() here because the cookie is already invalid —
+  // there is nothing to clear on the server.
+  useEffect(() => {
+    const cleanup = onUnauthorized(() => {
+      setUser(null)
+    })
+    return cleanup
   }, [])
 
   // login — call after a successful POST /api/auth/login.

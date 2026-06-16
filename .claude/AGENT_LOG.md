@@ -76,6 +76,78 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 
 ## Bitácora
 
+### [2026-06-16] frontend-react — Centralized 401 session-expiry handling
+
+- **Qué cambió**:
+  - Nuevo módulo `frontend/src/services/sessionEvents.js`: pub/sub de un solo slot sin dependencias de React. Exports: `onUnauthorized(handler)` (registro del listener, devuelve cleanup) y `notifyUnauthorized()` (disparo desde servicios).
+  - `frontend/src/context/AuthContext.jsx`: nuevo `useEffect` que registra el handler vía `onUnauthorized`. Cuando se dispara, llama `setUser(null)`. El efecto hace cleanup al desmontar. No se llama a `logoutRequest()` porque la cookie ya expiró en el servidor.
+  - `frontend/src/services/addressService.js`: todos los casos 401 (getAddresses, createAddress, updateAddress, deleteAddress) llaman `notifyUnauthorized()` antes de lanzar el Error.
+  - `frontend/src/services/adminService.js`: `adminFetch()` detecta `res.status === 401` y llama `notifyUnauthorized()` antes de lanzar el Error — cubre todos los endpoints admin con un único punto.
+
+- **Por qué**: cuando el JWT expiraba (15 min), el header seguía mostrando "Hola, {nombre}" y `AddressManager` mostraba "Necesitas iniciar sesión" aunque el header dijera que estabas autenticado — inconsistencia visible para el usuario. La fuente de verdad es el servidor; un 401 en cualquier endpoint protegido significa que la sesión ya no es válida.
+
+- **Impacto para otros agentes**:
+  - `backend-node`: ninguno. No cambia ningún contrato de API.
+  - `testing-expert`: se puede añadir test de integración que simule un 401 en `getAddresses` y verifique que `AuthContext` pone `user = null`.
+  - `security-expert`: el mecanismo no almacena ningún token; sigue el modelo de cookie httpOnly. Sin nuevos vectores XSS ni CSRF.
+
+- **Acción requerida**: ninguna bloqueante. Ver nota para `testing-expert` arriba.
+
+### [2026-06-16] frontend-react — QA bug fixes: AddressManager + flujo de pedido (BUG-1/2/3/4, GAP-5)
+
+- **Qué cambió**:
+
+  **`frontend/src/components/AddressManager.jsx`**:
+  - **BUG-1**: nueva prop `onFormOpenChange(isOpen: boolean)`. Se llama cada vez que `view`
+    cambia entre `'list'` y `'add'`/`'edit'` via el nuevo helper interno `changeView()`.
+    Todos los handlers que hacen `setView` ahora usan `changeView` para notificar al padre.
+  - **BUG-2**: nueva función `isInDeliveryZone(city, postalCode)` + constante
+    `MATARO_POSTAL_CODES`. `validateForm` ahora rechaza combinaciones ciudad+CP que no sean
+    Mataró (CP 08301–08304) con el mensaje "Solo realizamos entregas en Mataró (CP 08301–08304).".
+    Aplica sobre los campos `city` y `postalCode` juntos. El manejo del 422 del servidor sigue
+    presente como red de seguridad.
+  - **BUG-3**: en `handleConfirmDelete`, cuando la dirección borrada es la actualmente
+    seleccionada, se llama también a `onSelectAddress(null)` además de `onSelect(null)`.
+
+  **`frontend/src/pages/PedidoDatos.jsx`**:
+  - **BUG-1**: nuevo estado `addressFormOpen` (boolean). Pasado como `onFormOpenChange` a
+    `<AddressManager>`. El botón "Continuar" queda `disabled` también cuando `addressFormOpen`
+    es `true`. Mensaje de ayuda contextual "Guarda o cancela la dirección antes de continuar."
+  - **BUG-3**: el callback `onSelectAddress` ahora maneja `addr === null` limpiando
+    `selectedAddressLabel` a `''`.
+  - **GAP-5**: el redirect a `/login` se aplica ahora a **todos los modos** (recoger y
+    domicilio), no solo domicilio. `state.from` preserva el modo correcto
+    (`/hacer-pedido/datos?mode=recoger` o `?mode=domicilio`).
+  - `useEffect` (sin uso) eliminado del import.
+
+  **`frontend/src/pages/OrderConfirmation.jsx`**:
+  - **BUG-4**: `hasValidState` comprueba que `state != null`, que `state.mode` es
+    `'recoger'`/`'domicilio'` y que `state.items` es un array no vacío. Si la condición falla
+    (acceso directo, recarga dura, o URL escrita a mano), se hace `<Navigate to="/hacer-pedido" replace />`.
+    La comprobación de auth se mantiene después, como red de seguridad.
+
+- **Por qué**: bugs detectados por QA en la feature de direcciones de pedido.
+
+- **Decisiones**:
+  - GAP-5 se resuelve bloqueando en `PedidoDatos` (inicio del flujo) en vez de en
+    `OrderConfirmation` (final), para que el carrito no se pierda al redirigir sin sesión.
+  - La validación de zona en `AddressManager` (BUG-2) pone error en ambos campos (city y
+    postalCode) para que el usuario entienda que la combinación completa no es válida.
+
+- **Verificación**: `npm run build` → 85 módulos, 0 errores, 0 warnings.
+
+- **Impacto para otros agentes**:
+  - `testing-expert`: nuevos casos a cubrir: (1) modo recoger sin sesión → redirect `/login`;
+    (2) abrir formulario de alta en AddressManager → "Continuar" deshabilitado; (3) guardar/cancelar
+    formulario → "Continuar" habilitado de nuevo (si hay dirección seleccionada); (4) borrar
+    dirección seleccionada → label limpiado, "Continuar" deshabilitado; (5) CP/ciudad fuera de
+    Mataró → error en cliente antes de enviar al servidor; (6) acceso directo a
+    `/hacer-pedido/confirmar` → redirect a `/hacer-pedido`.
+  - `qa-expert`: verificar que el mensaje "Guarda o cancela la dirección antes de continuar."
+    aparece visualmente cuando hay un formulario abierto y el botón está gris.
+
+- **Acción requerida**: ninguna para otros agentes.
+
 ### [2026-06-16] backend-node — Fix M-1: validación de zona de reparto en PATCH parcial de direcciones
 
 - **Qué cambió**:

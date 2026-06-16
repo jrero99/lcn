@@ -17,10 +17,22 @@ import Modal from '../components/Modal.jsx'
 //     notes: string }
 // Compatible con items del carrito anterior (que solo tenían { id, name, price, quantity })
 // — campos opcionales se tratan con fallback.
+//
+// BUG-4: if there is no valid navigation state (direct access, hard reload, or
+// missing items/mode) the page redirects to /hacer-pedido instead of showing a
+// broken confirmation with empty data.
 
 export default function OrderConfirmation() {
   const { state } = useLocation()
   const { isAuthenticated, loading: authLoading } = useAuth()
+
+  // BUG-4: guard against direct access / hard reload (navState lost).
+  // A valid arrival must have at least `mode` and a non-empty `items` array.
+  const hasValidState =
+    state != null &&
+    (state.mode === 'recoger' || state.mode === 'domicilio') &&
+    Array.isArray(state.items) &&
+    state.items.length > 0
 
   const mode = state?.mode === 'recoger' ? 'recoger' : 'domicilio'
   const total = state?.total ?? 0
@@ -42,7 +54,13 @@ export default function OrderConfirmation() {
     )
   }
 
-  // Require authentication for all order confirmation steps
+  // BUG-4: redirect to start of ordering flow if state is missing or invalid
+  if (!hasValidState) {
+    return <Navigate to="/hacer-pedido" replace />
+  }
+
+  // Require authentication for all order confirmation steps (GAP-5 already
+  // prevents reaching here without a session, but keep this as a safety net).
   if (!isAuthenticated) {
     return (
       <Navigate

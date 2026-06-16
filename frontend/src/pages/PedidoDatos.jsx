@@ -22,7 +22,7 @@
 //   El campo `address` (texto libre anterior) se sustituye por `addressId` (UUID).
 //   En modo recoger, addressId = null.
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate, useSearchParams, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import AddressManager from '../components/AddressManager.jsx'

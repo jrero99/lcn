@@ -16,6 +16,8 @@
 //   createdAt: string      — ISO 8601
 // }
 
+import { notifyUnauthorized } from './sessionEvents.js'
+
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
 /**
@@ -31,6 +33,7 @@ export async function getAddresses() {
   })
 
   if (res.status === 401) {
+    notifyUnauthorized()
     throw new Error('Necesitas iniciar sesión para ver tus direcciones.')
   }
   if (!res.ok) {
@@ -75,6 +78,7 @@ export async function createAddress(data) {
     let msg
     switch (res.status) {
       case 401:
+        notifyUnauthorized()
         msg = 'Necesitas iniciar sesión para guardar una dirección.'
         break
       case 422:
@@ -119,6 +123,7 @@ export async function updateAddress(id, data) {
     let msg
     switch (res.status) {
       case 401:
+        notifyUnauthorized()
         msg = 'Necesitas iniciar sesión para editar una dirección.'
         break
       case 404:
@@ -163,6 +168,7 @@ export async function deleteAddress(id) {
   let msg
   switch (res.status) {
     case 401:
+      notifyUnauthorized()
       msg = 'Necesitas iniciar sesión para eliminar una dirección.'
       break
     case 404:
