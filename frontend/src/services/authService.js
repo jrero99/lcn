@@ -61,12 +61,27 @@ export async function registerRequest(data) {
   })
 
   if (!res.ok) {
-    let msg = `Registro fallido: ${res.status}`
+    // The server messages are generic/English; map common statuses to Spanish.
+    let serverMsg
     try {
       const body = await res.json()
-      if (body?.message) msg = body.message
-      if (body?.error) msg = body.error
+      serverMsg = body?.message || body?.error
     } catch { /* ignore parse errors */ }
+
+    let msg
+    switch (res.status) {
+      case 409:
+        msg = 'Ya existe una cuenta con ese correo electrónico.'
+        break
+      case 422:
+        msg = 'Revisa los datos introducidos (por ejemplo, el teléfono debe ser un número español válido y la contraseña tener al menos 8 caracteres).'
+        break
+      case 429:
+        msg = 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.'
+        break
+      default:
+        msg = serverMsg || `No se ha podido crear la cuenta (${res.status}).`
+    }
     throw new Error(msg)
   }
 

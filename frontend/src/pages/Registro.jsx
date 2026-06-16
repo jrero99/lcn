@@ -233,6 +233,29 @@ export default function Registro() {
                 </p>
               )}
             </div>
+
+            {/* Password */}
+            <div>
+              <label htmlFor="reg-password" className="sr-only">Contraseña</label>
+              <div className="address-field" aria-describedby={errors.password ? 'reg-password-error' : undefined}>
+                <LockIcon />
+                <input
+                  id="reg-password"
+                  type="password"
+                  placeholder="Contraseña (mín. 8 caracteres)"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); clearError('password') }}
+                  aria-describedby={errors.password ? 'reg-password-error' : undefined}
+                  disabled={submitting}
+                />
+              </div>
+              {errors.password && (
+                <p id="reg-password-error" className="field-error" role="alert">
+                  {errors.password}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Checkboxes */}
@@ -309,7 +332,9 @@ export default function Registro() {
             </label>
           </fieldset>
 
-          <button type="submit" className="btn-continue">Crea tu cuenta ahora</button>
+          <button type="submit" className="btn-continue" disabled={submitting}>
+            {submitting ? 'Creando cuenta…' : 'Crea tu cuenta ahora'}
+          </button>
         </form>
 
         {/* Divider + login CTA */}
@@ -320,12 +345,12 @@ export default function Registro() {
         </Link>
       </div>
 
-      {/* Welcome modal — shown on successful mock registration */}
+      {/* Welcome modal — shown after a successful registration (user is logged in) */}
       <Modal
         isOpen={welcomeOpen}
         onClose={handleWelcomeClose}
         title="¡Bienvenido/a!"
-        message="Tu cuenta se ha creado correctamente. Ya puedes iniciar sesión y disfrutar de todos nuestros servicios."
+        message="Tu cuenta se ha creado correctamente y ya has iniciado sesión. ¡Disfruta de todos nuestros servicios!"
       />
     </section>
   )
@@ -388,6 +413,26 @@ function PhoneIcon() {
       aria-hidden="true"
     >
       <path d="M6.6 10.8a15.04 15.04 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.58.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C9.61 21 3 14.39 3 6.25A1 1 0 0 1 4 5.25h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1.02L6.6 10.8z" />
+    </svg>
+  )
+}
+
+function LockIcon() {
+  return (
+    <svg
+      className="pin-icon"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
     </svg>
   )
 }
