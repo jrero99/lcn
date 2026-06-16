@@ -73,6 +73,40 @@ _(BD por andamiar. Stack decidido: PostgreSQL + Prisma.)_
 
 ## Bitácora
 
+### [2026-06-16] backend-node — Catálogo expone `ingredients[]` + opción "Boniato" en hamburguesas
+
+- **Qué cambió**:
+  - `backend/src/services/catalogService.js`: `GET /api/catalog` ahora incluye `ingredients: string[]` por producto (antes se omitía pese a existir en BD). Añadido `ingredients` al `include` de Prisma y al mapeo de respuesta. Con esto el `ProductModal` (que ya renderiza checkboxes de ingredientes removibles desde `product.ingredients`) por fin los muestra; el cliente puede quitar ingredientes (`removedIngredients` por línea en `POST /api/orders`).
+  - `backend/prisma/seedCatalog.js`: añadida la opción **"Boniato"** (priceDelta 0) al grupo "Elige tu acompañante" de las hamburguesas (ahora Bravas/Fritas/Boniato). Re-seed ejecutado.
+- **Contexto**: la captura del usuario (modal con "Lorem Ipsum"/"Bravas" duplicado y foto) era un mockup de diseño antiguo; la BD real ya tenía 186 ingredientes y 18 grupos de opciones bien formados. El modal real no muestra foto (no hay `<img>`), así que "que no se vea la foto" ya se cumplía.
+- **Verificación**: `GET /api/catalog` → Frank Costello con `ingredients:[Lechuga,Tomate,Pepinillo,Bacon,Queso,Salsa tártara]` y acompañante `Bravas/Fritas/Boniato`. `node --check` OK.
+- **Nota**: re-seedear el catálogo recrea productos con nuevos UUID (referencia blanda desde `OrderLine`). Sin pedidos reales todavía → sin impacto. Tenerlo en cuenta cuando existan pedidos.
+
+### [2026-06-16] frontend-react — Horarios reales en Reservas + fuente única `data/hours.js`
+
+- **Qué cambió**:
+  - `frontend/src/data/hours.js` (nuevo): fuente única de verdad de horarios de apertura. Exporta:
+    - `OPENING_HOURS` — mapa por día JS (0=domingo … 6=sábado), cada entrada lista de rangos `{ open, close }` en 'HH:MM'. Días cerrados = `[]`. Medianoche = `'24:00'`.
+    - `FOOTER_HOURS` — array de filas para la tabla del footer (texto display). Derivado fijo de `OPENING_HOURS`; único lugar donde se define el texto legible.
+    - Helpers: `isOpenDay(dayIndex)`, `closedDayMessage(dayIndex)`, `getSlotsForDay(dayIndex)` (slots cada 30 min, último = cierre − 30 min), `timeToMinutes`, `minutesToTime`.
+  - `frontend/src/components/Footer.jsx`: eliminada la constante `HOURS` local; ahora importa `FOOTER_HOURS` de `data/hours.js`. Markup visual idéntico.
+  - `frontend/src/pages/Reservas.jsx`: refactorizado completo del campo de fecha y hora:
+    - `DEFAULT_DATE` y `TIME_SLOTS` mock eliminados.
+    - Campo `date`: `min` = hoy (formato YYYY-MM-DD calculado en cliente). Validación en `onChange` y en `validate()`: fecha pasada → error; día cerrado (lun/mar) → mensaje `closedDayMessage()`. El `input[type=date]` no puede deshabilitar días específicos nativamente; se valida por cambio + submit.
+    - Campo `time`: slots generados con `getSlotsForDay(dayOfWeek)` via `useMemo([date])`. Si no hay fecha válida → `disabled` con texto "Primero elige un día abierto". Si el usuario cambia fecha a otro día y la hora previa ya no está en los nuevos slots → se resetea y se limpia su error.
+    - Medianoche manejada: `'24:00'` = 1440 min. El último slot de viernes/sábado es `23:30` (1440 − 30 = 1410 min). Correcto.
+    - `role="alert"` añadido a los párrafos de error del formulario (accesibilidad).
+    - Comentario indicando que `POST /api/reservations` validará esto también en el servidor (cliente = UX only).
+- **Por qué**: los slots mock (13:00–16:30 / 19:30–22:30) no coincidían con los horarios reales del negocio. Petición explícita del usuario.
+- **Verificación**: `npm run build` → 82 módulos, 0 errores, 0 warnings.
+- **Supuestos**:
+  - La lógica de parseo de YYYY-MM-DD usa `new Date(y, m-1, d)` (partes numéricas) para evitar el desplazamiento de zona horaria que produce `new Date('YYYY-MM-DD')`.
+  - `FOOTER_HOURS` es un array derivado fijo (no calculado desde `OPENING_HOURS` algorítmicamente) porque las etiquetas de texto del footer ("Miércoles a jueves", etc.) son editoriales y no se pueden generar automáticamente. Si cambian los horarios, hay que actualizar ambas exportaciones de `hours.js`, pero siguen viviendo en el mismo archivo.
+- **Impacto para otros agentes**:
+  - `backend-node`: cuando se implemente `POST /api/reservations`, debe revalidar que `date+time` caen dentro de los horarios reales (los datos de `OPENING_HOURS` son la fuente de verdad para el frontend; el backend necesita su propia copia/lógica equivalente).
+  - `testing-expert`: nuevos casos: (a) elegir lunes → error visible, botón bloqueado; (b) elegir miércoles → slots 18:00–23:00; (c) elegir viernes → slots 18:00–23:30; (d) elegir sábado → slots 11:00–15:30 y 19:00–23:30; (e) elegir domingo → slots 11:00–15:30; (f) cambiar de viernes a domingo → hora previa reseteada si no existe en el nuevo set.
+- **Acción requerida**: ninguna inmediata. El número de WhatsApp sigue siendo placeholder (`34XXXXXXXXX`).
+
 ### [2026-06-16] frontend-react — Header reactivo al estado de sesión
 
 - **Qué cambió** (`frontend/src/components/Header.jsx`, `frontend/src/index.css`):

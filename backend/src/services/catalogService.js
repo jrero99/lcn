@@ -8,7 +8,7 @@ import { prisma } from '../config/prisma.js'
  *   { id, slug, label, heading, products: [...] }
  *
  * Response shape per product:
- *   { id, name, description, price, allergens: string[], options?: [...] }
+ *   { id, name, description, price, allergens: string[], ingredients: string[], options?: [...] }
  */
 export async function getCatalog() {
   const categories = await prisma.category.findMany({
@@ -33,6 +33,9 @@ export async function getCatalog() {
               },
             },
           },
+          ingredients: {
+            orderBy: { sortOrder: 'asc' },
+          },
         },
       },
     },
@@ -49,6 +52,9 @@ export async function getCatalog() {
       description: p.description ?? '',
       price: Number(p.price),
       allergens: p.productAllergens.map((pa) => pa.allergen.name),
+      // Removable ingredients (rendered as checkboxes in ProductModal). The
+      // frontend sends back the unchecked ones as `removedIngredients` per line.
+      ingredients: p.ingredients.map((i) => i.name),
       options:
         p.optionGroups.length > 0
           ? p.optionGroups.map((og) => ({
