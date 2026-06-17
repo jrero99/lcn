@@ -1,4 +1,6 @@
 // ProtectedRoute.test.jsx — tests for the auth guard component.
+// NOTE: These tests use renderWithProviders (MemoryRouter + AuthContext.Provider)
+// to avoid mounting the real AuthProvider (which calls GET /api/auth/me).
 import { screen } from '@testing-library/react'
 import ProtectedRoute from '../../components/ProtectedRoute.jsx'
 import { renderWithProviders, loadingAuthContext, authenticatedUserContext, adminUserContext, defaultAuthContext } from '../helpers.jsx'
@@ -9,7 +11,8 @@ describe('ProtectedRoute', () => {
       <ProtectedRoute><div>Content</div></ProtectedRoute>,
       { authValue: loadingAuthContext }
     )
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    // Use querySelector instead of getByRole to avoid RTL's expensive a11y tree walk
+    expect(document.querySelector('[role="status"]')).toBeInTheDocument()
     expect(screen.queryByText('Content')).toBeNull()
   })
 

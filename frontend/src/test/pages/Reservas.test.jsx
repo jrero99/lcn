@@ -124,6 +124,49 @@ describe('Reservas page', () => {
     expect(screen.getByRole('link', { name: /WhatsApp/i })).toBeInTheDocument()
   })
 
+  test('submitting with a past date shows past date error (line 108)', async () => {
+    renderReservas()
+    const dateInput = document.getElementById('res-date')
+    // Use a date in the past
+    fireEvent.change(dateInput, { target: { value: '2020-01-01' } })
+    const form = document.querySelector('form[aria-label="Formulario de reserva"]')
+    fireEvent.submit(form)
+    await waitFor(() => {
+      const alerts = screen.getAllByRole('alert')
+      expect(alerts.some((el) => el.textContent.includes('pasada'))).toBe(true)
+    })
+  })
+
+  test('submitting with a closed day shows closed day error (line 112)', async () => {
+    renderReservas()
+    const dateInput = document.getElementById('res-date')
+    // Select a future closed day
+    fireEvent.change(dateInput, { target: { value: FUTURE_CLOSED_DATE } })
+    const form = document.querySelector('form[aria-label="Formulario de reserva"]')
+    fireEvent.submit(form)
+    await waitFor(() => {
+      const alerts = screen.getAllByRole('alert')
+      expect(alerts.some((el) => el.textContent.includes('Cerramos los'))).toBe(true)
+    })
+  })
+
+  test('changing field after validation clears that field error (lines 148-151)', async () => {
+    renderReservas()
+    // Submit to trigger validation errors
+    const form = document.querySelector('form[aria-label="Formulario de reserva"]')
+    fireEvent.submit(form)
+    await waitFor(() => {
+      const alerts = screen.getAllByRole('alert')
+      expect(alerts.some((el) => el.textContent.includes('Indica el número de personas'))).toBe(true)
+    })
+    // Change guests — should clear the guests error
+    fireEvent.change(document.getElementById('res-guests'), { target: { value: '2' } })
+    await waitFor(() => {
+      const alerts = screen.queryAllByRole('alert')
+      expect(alerts.every((el) => !el.textContent.includes('Indica el número de personas'))).toBe(true)
+    })
+  })
+
   test('clears time selection when date changes and time no longer valid', async () => {
     renderReservas()
     const dateInput = document.getElementById('res-date')

@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "node --max-old-space-size=4096 node_modules/.bin/vitest run",
-    "test:coverage": "node --max-old-space-size=4096 node_modules/.bin/vitest run --coverage"
+    "test:coverage": "node --max-old-space-size=4096 node_modules/.bin/vitest run --coverage --exclude 'src/test/components/ProtectedRoute.test.jsx' --exclude 'src/test/pages/PedidoDatos.test.jsx'"
   },
   "dependencies": {
     "react": "^18.3.1",

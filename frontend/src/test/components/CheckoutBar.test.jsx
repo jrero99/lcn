@@ -172,4 +172,41 @@ describe('CheckoutBar', () => {
     const priceElements = screen.getAllByText('7,50 €')
     expect(priceElements.length).toBeGreaterThanOrEqual(1)
   })
+
+  test('product without options array shows base price (resolveOptionLabels early return)', () => {
+    // makeProduct() returns options: [] but this covers product.options undefined path
+    const productNoOptions = { id: 'p-bare', name: 'Boca Bare', price: 4.0 }
+    const cartLines = [{
+      key: 'k3', product: productNoOptions, quantity: 1,
+      selectedOptions: {}, removedIngredients: [], notes: '',
+    }]
+    render(<CheckoutBar {...baseProps} total={4.0} cartCount={1} cartLines={cartLines} />)
+    fireEvent.click(screen.getByRole('button', { name: /Ver pedido/i }))
+    // Line total = 4,00 €; price appears in both cart line and total bar
+    expect(screen.getByText('Boca Bare')).toBeInTheDocument()
+    const prices = screen.getAllByText('4,00 €')
+    expect(prices.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('clicking "Ver pedido" when cartCount=0 does nothing (toggleExpanded guard)', () => {
+    // When cartCount=0 the toggle button is not rendered — this confirms the guard
+    render(<CheckoutBar {...baseProps} cartCount={0} total={0} />)
+    // The toggle button should NOT exist at all
+    expect(screen.queryByRole('button', { name: /Ver pedido/i })).toBeNull()
+  })
+
+  test('clicking "Ver pedido" twice collapses the panel', () => {
+    const cartLines = [{
+      key: 'k1', product: makeProduct(), quantity: 1,
+      selectedOptions: {}, removedIngredients: [], notes: '',
+    }]
+    render(<CheckoutBar {...baseProps} total={5.5} cartCount={1} cartLines={cartLines} />)
+    const toggle = screen.getByRole('button', { name: /Ver pedido/i })
+    // Expand
+    fireEvent.click(toggle)
+    expect(screen.getByRole('button', { name: /Ocultar/i })).toBeInTheDocument()
+    // Collapse
+    fireEvent.click(screen.getByRole('button', { name: /Ocultar/i }))
+    expect(screen.getByRole('button', { name: /Ver pedido/i })).toBeInTheDocument()
+  })
 })

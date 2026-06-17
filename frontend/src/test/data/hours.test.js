@@ -126,4 +126,10 @@ describe('getSlotsForDay', () => {
     const slots = getSlotsForDay(3)
     expect(slots[slots.length - 1]).toBe('23:00')
   })
+
+  test('returns empty array for unknown day index (nullish coalescing fallback)', () => {
+    // dayIndex 7 is not in OPENING_HOURS → falls back to [] via ?? operator
+    expect(getSlotsForDay(7)).toEqual([])
+    expect(getSlotsForDay(99)).toEqual([])
+  })
 })

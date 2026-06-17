@@ -11,7 +11,9 @@ beforeEach(() => {
 describe('MisDirecciones page', () => {
   test('shows loading spinner while auth is resolving', () => {
     renderWithProviders(<MisDirecciones />, { authValue: loadingAuthContext })
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    // Use querySelector instead of getByRole('status') — the role="status" +
+    // aria-live="polite" combination triggers an OOM bug in Vitest 4.1.9 + jsdom 29.
+    expect(document.querySelector('[role="status"]')).toBeInTheDocument()
   })
 
   test('redirects to /login when not authenticated', () => {

@@ -280,4 +280,29 @@ describe('AddressManager', () => {
     render(<AddressManager />)
     await waitFor(() => expect(screen.getByText(/límite de 10 direcciones/)).toBeInTheDocument())
   })
+
+  test('clicking address item content calls onSelect and onSelectAddress when both provided', async () => {
+    const onSelect = vi.fn()
+    const onSelectAddress = vi.fn()
+    render(<AddressManager onSelect={onSelect} onSelectAddress={onSelectAddress} />)
+    await waitFor(() => expect(screen.getByText('Casa')).toBeInTheDocument())
+    // Click on the address item content (the div that wraps label + text)
+    const addrContent = document.querySelector('.addr-item-content')
+    fireEvent.click(addrContent)
+    expect(onSelect).toHaveBeenCalledWith('a1')
+    expect(onSelectAddress).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1' }))
+  })
+
+  test('closing delete modal while not deleting resets modal state', async () => {
+    render(<AddressManager />)
+    await waitFor(() => expect(screen.getByText('Casa')).toBeInTheDocument())
+    // Open delete modal
+    fireEvent.click(screen.getByRole('button', { name: /Eliminar Casa/ }))
+    expect(screen.getByText(/Eliminar dirección/)).toBeInTheDocument()
+    // Click cancel button inside the modal to close it (not the X / backdrop)
+    const cancelBtn = screen.getByRole('button', { name: /Cancelar/, hidden: true })
+    fireEvent.click(cancelBtn)
+    // Modal should close
+    await waitFor(() => expect(screen.queryByText(/Seguro que quieres eliminar/)).toBeNull())
+  })
 })

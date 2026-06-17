@@ -43,7 +43,9 @@ describe('OrderConfirmation page', () => {
       authValue: loadingAuthContext,
       initialEntries: [{ pathname: '/confirmar', state: validNavState }],
     })
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    // Use querySelector to avoid the RTL aria-tree walk on role="status" aria-live="polite"
+    // (Vitest 4.1.9 + jsdom 29 OOM bug)
+    expect(document.querySelector('[role="status"]')).toBeInTheDocument()
   })
 
   test('redirects to /hacer-pedido when state is missing (BUG-4)', () => {
@@ -147,5 +149,86 @@ describe('OrderConfirmation page', () => {
     renderConfirmation(validNavState)
     expect(screen.getByRole('link', { name: /Modificar pedido/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Volver al inicio/ })).toBeInTheDocument()
+  })
+
+  test('shows phone validation error for invalid phone format', async () => {
+    renderConfirmation(validNavState)
+    const phoneInput = screen.getByRole('textbox', { name: /Teléfono de contacto/ })
+    // Enter an invalid phone (too short, not a Spanish number)
+    fireEvent.change(phoneInput, { target: { value: '123' } })
+    const form = document.querySelector('.confirm-submit-form')
+    fireEvent.submit(form)
+    await waitFor(() => {
+      const alerts = screen.getAllByRole('alert')
+      expect(alerts.some((el) => el.textContent.includes('teléfono de teléfono español válido') ||
+        el.textContent.includes('español válido'))).toBe(true)
+    })
+  })
+
+  test('shows phone validation error for empty phone', async () => {
+    renderConfirmation(validNavState)
+    // Do NOT fill in the phone — submit empty form
+    const form = document.querySelector('.confirm-submit-form')
+    fireEvent.submit(form)
+    await waitFor(() => {
+      const alerts = screen.getAllByRole('alert')
+      expect(alerts.some((el) => el.textContent.includes('número de teléfono'))).toBe(true)
+    })
+  })
+
+  test('closing the error modal hides it', async () => {
+    orderService.createOrder.mockRejectedValue(new Error('Network failure'))
+    renderConfirmation(validNavState)
+    const phoneInput = screen.getByRole('textbox', { name: /Teléfono de contacto/ })
+    fireEvent.change(phoneInput, { target: { value: '612345678' } })
+    const form = document.querySelector('.confirm-submit-form')
+    fireEvent.submit(form)
+    // Wait for error modal to appear
+    await waitFor(() => expect(screen.getByText(/No se ha podido enviar el pedido/)).toBeInTheDocument())
+    // Close the error modal by clicking the X button (aria-hidden backdrop)
+    const closeBtn = screen.getByRole('button', { name: /Cerrar/i, hidden: true })
+    fireEvent.click(closeBtn)
+    // Modal should close
+    await waitFor(() => expect(screen.queryByText(/No se ha podido enviar el pedido/)).toBeNull())
+  })
+
+  test('closing success modal triggers navigation away', async () => {
+    renderConfirmation(validNavState)
+    const phoneInput = screen.getByRole('textbox', { name: /Teléfono de contacto/ })
+    fireEvent.change(phoneInput, { target: { value: '612345678' } })
+    const form = document.querySelector('.confirm-submit-form')
+    fireEvent.submit(form)
+    // Wait for success modal
+    await waitFor(() => expect(screen.getByText('¡GRACIAS POR TU PEDIDO!')).toBeInTheDocument())
+    // Close it — triggers navigate('/', { replace: true })
+    const closeBtn = screen.getByRole('button', { name: /Cerrar/i, hidden: true })
+    fireEvent.click(closeBtn)
+    // After navigate the component unmounts or redirects — modal should close
+    await waitFor(() => expect(screen.queryByText('¡GRACIAS POR TU PEDIDO!')).toBeNull())
+  })
+
+  test('buildOrderItems includes selectedOptions and removedIngredients when present', async () => {
+    // Items with selectedOptions and removedIngredients (lines 136, 139 in buildOrderItems)
+    const stateWithCustomOrder = {
+      ...validNavState,
+      items: [{
+        id: 'p1', name: 'Bocadillo Test',
+        unitPrice: 7.75, quantity: 1, lineTotal: 7.75,
+        options: [{ groupLabel: 'Tamaño', choiceLabel: 'Grande' }],
+        selectedOptions: { g1: 'c2' },      // non-empty → included in order
+        removedIngredients: ['cebolla'],    // non-empty → included in order
+        notes: '',
+      }],
+    }
+    renderConfirmation(stateWithCustomOrder)
+    const phoneInput = screen.getByRole('textbox', { name: /Teléfono de contacto/ })
+    fireEvent.change(phoneInput, { target: { value: '612345678' } })
+    const form = document.querySelector('.confirm-submit-form')
+    fireEvent.submit(form)
+    await waitFor(() => expect(orderService.createOrder).toHaveBeenCalled())
+    // Verify the order payload includes selectedOptions and removedIngredients
+    const call = orderService.createOrder.mock.calls[0][0]
+    expect(call.items[0].selectedOptions).toEqual({ g1: 'c2' })
+    expect(call.items[0].removedIngredients).toEqual(['cebolla'])
   })
 })

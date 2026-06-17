@@ -21,6 +21,11 @@ if (!global.crypto.randomUUID) {
 // Stub window.scrollTo (jsdom doesn't implement it)
 window.scrollTo = vi.fn()
 
+// Stub Element.scrollIntoView (jsdom doesn't implement it)
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = vi.fn()
+}
+
 // Default fetch mock — individual tests override as needed.
 // Prevents real network requests in every test.
 global.fetch = vi.fn()

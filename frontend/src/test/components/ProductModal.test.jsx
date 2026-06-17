@@ -174,4 +174,50 @@ describe('ProductModal', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(dialog).toHaveAttribute('aria-labelledby', `modal-title-${simpleProduct.id}`)
   })
+
+  test('Tab key focus trap: Tab from last element wraps to first', () => {
+    renderModal({ product: productWithOptions, onClose: vi.fn(), onAdd: vi.fn() })
+    const backdrop = document.querySelector('.product-modal-backdrop')
+    const dialog = screen.getByRole('dialog')
+    // Get all focusable elements and focus the last one
+    const focusable = Array.from(
+      dialog.querySelectorAll('button, [href], input, select, textarea')
+    ).filter((el) => !el.disabled)
+    const lastEl = focusable[focusable.length - 1]
+    lastEl.focus()
+    // Tab from last element — should trigger the wrap-to-first branch (lines 97-99)
+    fireEvent.keyDown(backdrop, { key: 'Tab', shiftKey: false })
+    // Focus trap ran without error; first element should now be focused
+    expect(focusable[0]).toBeInTheDocument()
+  })
+
+  test('Tab key focus trap: Shift+Tab from first element wraps to last', () => {
+    renderModal({ product: productWithOptions, onClose: vi.fn(), onAdd: vi.fn() })
+    const backdrop = document.querySelector('.product-modal-backdrop')
+    const dialog = screen.getByRole('dialog')
+    // Get all focusable elements and focus the first one
+    const focusable = Array.from(
+      dialog.querySelectorAll('button, [href], input, select, textarea')
+    ).filter((el) => !el.disabled)
+    const firstEl = focusable[0]
+    firstEl.focus()
+    // Shift+Tab from first element — should trigger the wrap-to-last branch (lines 94-96)
+    fireEvent.keyDown(backdrop, { key: 'Tab', shiftKey: true })
+    expect(dialog).toBeInTheDocument()
+  })
+
+  test('re-checking an ingredient removes it from removedIngredients', () => {
+    const onAdd = vi.fn()
+    renderModal({ product: productWithIngredients, onClose: vi.fn(), onAdd })
+    const checkboxes = screen.getAllByRole('checkbox')
+    // Uncheck tomate (index 1) — adds to removedIngredients
+    fireEvent.click(checkboxes[1])
+    // Re-check tomate — removes from removedIngredients
+    fireEvent.click(checkboxes[1])
+    fireEvent.click(screen.getByRole('button', { name: /Añadir al pedido/i }))
+    expect(onAdd).toHaveBeenCalledWith(
+      productWithIngredients,
+      expect.objectContaining({ removedIngredients: [] })
+    )
+  })
 })

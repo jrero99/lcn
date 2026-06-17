@@ -21,7 +21,8 @@ describe('PedidoDatos page', () => {
       authValue: loadingAuthContext,
       initialEntries: ['/hacer-pedido/datos?mode=recoger'],
     })
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    // Use querySelector to avoid RTL's expensive aria tree walk on role="status"
+    expect(document.querySelector('[role="status"]')).toBeInTheDocument()
   })
 
   test('redirects to /login when not authenticated', () => {
