@@ -1,16 +1,24 @@
 import { z } from 'zod'
 
+export const ORDER_STATUSES = [
+  'PENDING',
+  'CONFIRMED',
+  'PREPARING',
+  'READY',
+  'OUT_FOR_DELIVERY',
+  'DELIVERED',
+  'CANCELLED',
+]
+
 export const updateOrderStatusSchema = z.object({
-  status: z.enum([
-    'PENDING',
-    'CONFIRMED',
-    'PREPARING',
-    'READY',
-    'OUT_FOR_DELIVERY',
-    'DELIVERED',
-    'CANCELLED',
-  ]),
+  status: z.enum(ORDER_STATUSES),
   note: z.string().trim().max(500).optional(),
+})
+
+export const listOrdersQuerySchema = z.object({
+  status: z.enum(ORDER_STATUSES).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 })
 
 export const createProductSchema = z.object({

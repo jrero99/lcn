@@ -16,6 +16,7 @@ import AvisoLegal from './pages/AvisoLegal.jsx'
 import PoliticaPrivacidad from './pages/PoliticaPrivacidad.jsx'
 import PoliticaCookies from './pages/PoliticaCookies.jsx'
 import CondicionesVenta from './pages/CondicionesVenta.jsx'
+import MisDirecciones from './pages/MisDirecciones.jsx'
 import AdminOffice from './pages/AdminOffice.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 
@@ -84,6 +85,9 @@ export default function App() {
         {/* Auth pages */}
         <Route path="/login" element={<PublicLayout><Login /></PublicLayout>} />
         <Route path="/registro" element={<PublicLayout><Registro /></PublicLayout>} />
+
+        {/* Account pages (require login — guard is inside the page component) */}
+        <Route path="/mis-direcciones" element={<PublicLayout><MisDirecciones /></PublicLayout>} />
 
         {/* Páginas legales (texto informativo) */}
         <Route path="/aviso-legal" element={<PublicLayout><AvisoLegal /></PublicLayout>} />

@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma.js'
 import {
   updateOrderStatusSchema,
+  listOrdersQuerySchema,
   createProductSchema,
   updateProductSchema,
   createBlacklistEntrySchema,
@@ -11,9 +12,7 @@ import { httpError } from '../utils/httpError.js'
 
 export async function listOrders(req, res, next) {
   try {
-    const { status, page = '1', limit = '20' } = req.query
-    const pageNum = Math.max(1, parseInt(page, 10))
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10)))
+    const { status, page: pageNum, limit: limitNum } = listOrdersQuerySchema.parse(req.query)
     const skip = (pageNum - 1) * limitNum
 
     const where = status ? { status } : {}

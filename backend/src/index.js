@@ -56,8 +56,12 @@ app.use((_req, res) => res.status(404).json({ error: 'Not found' }))
 // ── Global error handler (must be last)
 app.use(errorHandler)
 
-app.listen(config.port, () => {
-  console.log(`LCN backend running on port ${config.port} [${config.nodeEnv}]`)
-})
+// Only start the server when this file is the entry point (not when imported by tests).
+// NODE_ENV=test skips the listen call so Supertest can bind its own ephemeral port.
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(config.port, () => {
+    console.log(`LCN backend running on port ${config.port} [${config.nodeEnv}]`)
+  })
+}
 
 export default app

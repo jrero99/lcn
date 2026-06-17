@@ -124,6 +124,7 @@ export default function Header() {
                 <Link className="nav-link" to="/adminoffice">Panel</Link>
               )}
               <span className="nav-user">Hola, {user?.firstName}</span>
+              <Link className="nav-link" to="/mis-direcciones">Mis direcciones</Link>
               <button
                 type="button"
                 className="nav-link nav-link--button"
