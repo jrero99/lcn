@@ -14,22 +14,22 @@
 // that simple string comparison works correctly within a day
 // (e.g. "23:45" < "24:00"). Days without ranges ([]) are CLOSED.
 //
-// Current schedule (as confirmed by the business, 2026-06-16):
+// Current schedule (as confirmed by the business, 2026-09-28):
 //   Monday    — CLOSED
 //   Tuesday   — CLOSED
 //   Wednesday — 18:00–23:30
 //   Thursday  — 18:00–23:30
 //   Friday    — 18:00–24:00 (midnight)
-//   Saturday  — 11:00–16:00 and 19:00–24:00 (midnight)
-//   Sunday    — 11:00–16:00 and 19:00–24:00 (midnight)
+//   Saturday  — 12:00–16:00 and 18:45–24:00 (midnight)
+//   Sunday    — 12:00–16:00 and 18:45–23:30
 // ============================================================
 
 /** @type {Array<Array<{open: string, close: string}>>} */
 export const OPENING_HOURS = [
   // 0 — Sunday
   [
-    { open: '11:00', close: '16:00' },
-    { open: '19:00', close: '24:00' },
+    { open: '12:00', close: '16:00' },
+    { open: '18:45', close: '23:30' },
   ],
   // 1 — Monday
   [],
@@ -43,8 +43,8 @@ export const OPENING_HOURS = [
   [{ open: '18:00', close: '24:00' }],
   // 6 — Saturday
   [
-    { open: '11:00', close: '16:00' },
-    { open: '19:00', close: '24:00' },
+    { open: '12:00', close: '16:00' },
+    { open: '18:45', close: '24:00' },
   ],
 ]
 

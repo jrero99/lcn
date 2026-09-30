@@ -22,6 +22,7 @@ agente(s) debe(n) trabajar.** El hilo principal actúa como despachador:
 - Auth, validación, secretos, RGPD, vulnerabilidades, "¿es seguro?" → `security-expert`
 - Tests automáticos, cobertura, "¿esto rompe algo?" → `testing-expert`
 - Criterios de aceptación, casos de uso, validación funcional/UX → `qa-expert`
+- SEO, meta tags, schema/datos estructurados, sitemap, posicionamiento local, Core Web Vitals → `seo-specialist` (solo audita/recomienda; implementa `frontend-react`)
 - "¿en qué estado está?", "¿qué ha cambiado?", sincronizar equipo → `knowledge-coordinator`
 
 Si la petición es ambigua, pregunta antes de delegar. Si es trivial
@@ -50,15 +51,14 @@ de este repositorio es en **castellano**.
 | Base datos  | **PostgreSQL + Prisma (ORM)**                           |
 | Auth        | JWT + hashing de contraseñas (bcrypt/argon2)            |
 | Pagos       | **Sin pasarela online.** Pago contra reembolso: tarjeta o efectivo al repartidor en la entrega |
-| Hosting     | Desarrollo local + **frontend desplegado en GitHub Pages** vía GitHub Actions: https://jrero99.github.io/lcn/. El backend aún no se despliega (sigue local). |
+| Hosting     | Desarrollo local. Frontend estático para subir a hosting propio (ver `frontend/DEPLOY.md`). **Sin deploy por GitHub Actions/Pages** (retirado 2026-09-30). Backend sin despliegue. |
 | Tests       | Frontend: Vitest + React Testing Library. Backend: Jest + Supertest |
 
 > **Decisiones confirmadas (2026-06-09):** BD = PostgreSQL + Prisma · Pago = al
-> repartidor (tarjeta/efectivo), sin pasarela online · Hosting = frontend en
-> GitHub Pages (https://jrero99.github.io/lcn/) vía GitHub Actions; backend sin
-> despliegue por ahora.
-> No introduzcas integraciones de pago (Stripe, etc.). El deploy de GitHub Pages
-> está adoptado; no añadas otros despliegues (backend, cloud, VPS, etc.) sin que
+> repartidor (tarjeta/efectivo), sin pasarela online · Hosting = frontend
+> estático en hosting propio (`frontend/DEPLOY.md`); el deploy a GitHub Pages vía
+> GitHub Actions se retiró el 2026-09-30. Backend sin despliegue por ahora.
+> No introduzcas integraciones de pago (Stripe, etc.). No añadas despliegues (backend, cloud, VPS, etc.) sin que
 > el usuario lo pida explícitamente.
 
 ## 3. Estructura de carpetas (objetivo)
@@ -129,6 +129,7 @@ Cada uno tiene su dominio. Delega en el agente correcto:
 | `security-expert`       | Auth, validación, RGPD, vulnerabilidades               |
 | `testing-expert`        | Tests unitarios e integración (front y back)           |
 | `qa-expert`             | QA funcional, casos de uso, criterios de aceptación    |
+| `seo-specialist`        | SEO técnico/local, keywords, schema (solo lectura; skill `seo-optimizer`) |
 | `knowledge-coordinator` | Sincroniza y "entrena" al resto registrando los cambios|
 
 **Flujo de coordinación**: cuando cualquier agente hace un cambio relevante
@@ -150,7 +151,7 @@ _Última actualización: 2026-06-16_
 - Página `Reservas`: formulario fecha/hora/zona/personas con horarios reales (`frontend/src/data/hours.js`); punto de integración con `POST /api/reservations` marcado con TODO.
 - Componente `Modal` genérico reutilizable (`frontend/src/components/Modal.jsx`). **Todos los diálogos/confirmaciones futuros deben reusar este componente.**
 - Diseño responsive completado: breakpoints 860px / 520px / 400px; menú hamburguesa accesible; targets táctiles 44px; sin overflow a 360px.
-- Deploy: GitHub Pages https://jrero99.github.io/lcn/ vía `.github/workflows/deploy.yml`. Vite `base: '/lcn/'` en CI; React Router con `basename`. `dist/404.html` como fallback SPA.
+- Deploy: workflow de GitHub Pages eliminado (2026-09-30). Publicación manual en hosting propio según `frontend/DEPLOY.md`.
 
 **Pendiente de construir (frontend):**
 - Página "Mis direcciones" (cuenta de usuario): montar `<AddressManager>` en standalone dentro de una página de cuenta. El componente ya existe y está listo; solo falta la página contenedora y su ruta.

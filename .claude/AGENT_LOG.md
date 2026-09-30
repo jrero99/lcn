@@ -134,6 +134,29 @@ Sin `app.set('trust proxy', 1)`, `express-rate-limit` y todos los limiters (`add
 
 ## Bitácora
 
+### [2026-09-30] hilo principal — Nuevo agente `seo-specialist` + skill `seo-optimizer`
+- **Qué cambió**: Creado `.claude/agents/seo-specialist.md` (auditoría/estrategia SEO, solo lectura: Read/Grep/Glob/WebFetch/WebSearch) y la skill `.claude/skills/seo-optimizer/SKILL.md` (checklist on-page/técnico/local). Añadido al despachador y a la tabla de agentes de `CLAUDE.md`.
+- **Por qué**: El usuario pidió incorporar SEO al equipo.
+- **Impacto para otros agentes**: `frontend-react` implementa las recomendaciones SEO (meta por ruta, JSON-LD `Restaurant`/`LocalBusiness`, `sitemap.xml`, imágenes). `security-expert` revisa cualquier script de analítica por RGPD/cookies.
+- **Acción requerida**: Ninguna.
+
+### [2026-09-28] frontend (hilo principal) — Web pública estática en hosting propio + horario real
+
+- **Qué cambió**:
+  - Feature flags en `frontend/src/config/features.js`: `VITE_ENABLE_AUTH`, `VITE_ENABLE_ORDERS` (solo efectivo con AUTH), `VITE_ENABLE_ONLINE_FORMS`. **Por defecto `false`**: un `npm run build` limpio genera la web pública estática.
+  - Con flags off: `App.jsx` no registra `/hacer-pedido*`, `/login`, `/registro`, `/mis-direcciones`, `/adminoffice`; ruta comodín `*` → `/`. Header sin login/"Hacer pedido"; Footer sin "Hacer pedido" ni "Condiciones de venta".
+  - `AuthContext` no llama a `/api/auth/me` si AUTH está off (`loading=false`, sin usuario).
+  - `fetchCatalog()` devuelve `STATIC_CATALOG` (`frontend/src/data/staticCatalog.js`, copia de `backend/prisma/seedCatalog.js`) si ORDERS está off. Carta en solo lectura con nota de alérgenos.
+  - `Reservas.jsx`: sin ONLINE_FORMS muestra WhatsApp + `tel:` + horario (el formulario anterior se quedaba en "Buscando mesas…" para siempre). `Trabaja.jsx`: sin ONLINE_FORMS muestra `mailto:` (el formulario anterior decía "recibido" y descartaba el CV).
+  - `data/business.js`: añadido `whatsapp`; `domain` pasa a placeholder. Teléfono pendiente de confirmar.
+  - `vite.config.js`: el script de Google Identity se inyecta solo con `VITE_ENABLE_AUTH=true`; `test.env` activa todos los flags para la suite existente.
+  - `frontend/public/`: `.htaccess` (fallback SPA Apache + caché + cabeceras), `_redirects` (Netlify/Cloudflare), `robots.txt`. Guía en `frontend/DEPLOY.md`.
+  - **Horario real** (confirmado por el negocio 2026-09-28): sábado 12:00–16:00 / 18:45–24:00, domingo 12:00–16:00 / 18:45–23:30 (antes 11:00–16:00 / 19:00–24:00 ambos). Actualizado en `frontend/src/data/hours.js` (incl. `FOOTER_HOURS`, ahora sábado y domingo por separado) y `backend/src/config/openingHours.js`, con sus tests.
+  - Tests nuevos: `frontend/src/test/staticSite.test.jsx` (mockea los flags a `false`).
+- **Por qué**: el cliente publica ya la web en su propio dominio, sin backend.
+- **Impacto para otros agentes**: cualquier enlace/página nueva que dependa del backend debe ir detrás de un flag. Si cambia la carta en `seedCatalog.js`, actualizar también `staticCatalog.js`. El deploy de GitHub Pages también sale ahora en modo estático.
+- **Acción requerida**: negocio → rellenar datos legales en `business.js` (razón social, NIF, dominio), confirmar teléfono/WhatsApp y **validar alérgenos** antes de publicar. `security-expert`/`qa-expert` → revisar textos legales (Privacidad menciona pedidos y cuentas que aún no existen).
+
 ### [2026-06-17] testing-expert — Infraestructura de testing del FRONTEND + cobertura ≥90%
 
 - **Qué cambió**:
@@ -1636,3 +1659,8 @@ TURNSTILE_SECRET_KEY       # Cloudflare Turnstile (si enabled)
 - **Por qué**: Arranque del proyecto LCN.
 - **Impacto para otros agentes**: Leer `CLAUDE.md` antes de actuar.
 - **Acción requerida**: Confirmar decisiones abiertas con el usuario.
+
+### [2026-09-30] frontend-react — Carta: productos no clicables (temporal)
+- **Qué cambió**: En `/carta` las tarjetas ya no abren `ProductModal` (sin role/tabIndex/onClick/onKeyDown, sin hover/cursor pointer). `ProductCard` recibe prop `interactive` (default `true`; OrderCatalog intacto); CSS hover/focus/cursor movido a `.product-card--interactive`. Quitados de `Carta.jsx` el import y estado del modal. Para revertir: quitar `interactive={false}`, pasar `onOpen`, y restaurar estado + `<ProductModal>` en Carta.
+- **Impacto**: Ninguno en backend/contratos.
+- **Acción requerida**: Ninguna.
