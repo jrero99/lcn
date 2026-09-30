@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/src/assets/logo/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="La Casa Nostra — bocadillería en Mataró. Carta, pedidos online y reservas." />
+    <meta name="description" content="La Casa Nostra — bocadillería en Mataró. Consulta nuestra carta, horarios y reserva tu mesa." />
+    <meta name="theme-color" content="#7A020E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -13,14 +14,9 @@
     />
     <title>La Casa Nostra · Bocadillería Mataró</title>
     <!--
-      Google Identity Services (GIS) — loaded here so it is available before
-      any React component mounts. `async` ensures the page is not blocked.
-      GoogleSignInButton.jsx also handles the case where the script has not
-      finished loading yet (waits for the onload event before initializing).
-      This tag is safe to have even if VITE_GOOGLE_CLIENT_ID is not set —
-      the component will simply not render the button.
+      Google Identity Services (GIS) is injected here by vite.config.js ONLY when
+      VITE_ENABLE_AUTH=true. GoogleSignInButton.jsx waits for its onload event.
     -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
     <div id="root"></div>

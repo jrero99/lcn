@@ -2,20 +2,22 @@ import { Link } from 'react-router-dom'
 import Logo from './Logo.jsx'
 import { BUSINESS } from '../data/business.js'
 import { FOOTER_HOURS } from '../data/hours.js'
+import { ORDERS_ENABLED } from '../config/features.js'
 
 // Pages column links.
 // - Internal SPA routes use <Link to="...">.
 // - Home-section anchors use <a href="/#..."> (full URL so they work from any page).
 // - Pages not yet built stay as href="#" with a TODO comment.
 const PAGE_LINKS = [
-  { label: 'Hacer pedido',        type: 'link',   to: '/hacer-pedido' },
+  ...(ORDERS_ENABLED ? [{ label: 'Hacer pedido', type: 'link', to: '/hacer-pedido' }] : []),
   { label: 'Reservar',            type: 'link',   to: '/reservar' },
   { label: 'La Carta',            type: 'link',   to: '/carta' },
   { label: 'Trabaja con Nosotros',type: 'link',   to: '/trabaja' },
   { label: 'Política de Privacidad', type: 'link', to: '/politica-privacidad' },
   { label: 'Aviso Legal',         type: 'link',   to: '/aviso-legal' },
   { label: 'Política de Cookies', type: 'link',   to: '/politica-cookies' },
-  { label: 'Condiciones de venta',type: 'link',   to: '/condiciones-venta' },
+  // Sale conditions only apply to online orders.
+  ...(ORDERS_ENABLED ? [{ label: 'Condiciones de venta', type: 'link', to: '/condiciones-venta' }] : []),
 ]
 
 export default function Footer() {
@@ -25,7 +27,7 @@ export default function Footer() {
         <div className="footer-brand">
           <Logo variant="cream" />
           <h4>Contáctanos</h4>
-          <p>+ 614 52 25 81</p>
+          <p><a className="footer-email" href={`tel:${BUSINESS.phone.replace(/\s/g, '')}`}>{BUSINESS.phone}</a></p>
           <p><a className="footer-email" href={`mailto:${BUSINESS.email}`}>{BUSINESS.email}</a></p>
           <p>Ronda de Sant Oleguer, 31, Bajos 1,<br />08304 Mataró, Barcelona</p>
           <p className="footer-copy">La Casa Nostra 2026 © - Copyright</p>

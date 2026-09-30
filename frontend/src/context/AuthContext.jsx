@@ -27,6 +27,7 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { getMeRequest, logoutRequest } from '../services/authService.js'
 import { onUnauthorized } from '../services/sessionEvents.js'
+import { AUTH_ENABLED } from '../config/features.js'
 
 export const AuthContext = createContext(null)
 
@@ -35,10 +36,13 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   // loading: true while GET /api/auth/me is in-flight on mount.
   // ProtectedRoute waits for this to resolve before redirecting.
-  const [loading, setLoading] = useState(true)
+  // With auth disabled (static site) there is no backend: nobody is ever
+  // logged in and nothing is loading.
+  const [loading, setLoading] = useState(AUTH_ENABLED)
 
   // On mount, resolve the current session from the server.
   useEffect(() => {
+    if (!AUTH_ENABLED) return
     let cancelled = false
 
     getMeRequest()

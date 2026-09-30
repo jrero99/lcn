@@ -3,6 +3,12 @@
 // Fetches the catalog from the backend (GET /api/catalog). This is the ONLY
 // file that talks to the catalog endpoint; OrderCatalog.jsx, Carta.jsx and any
 // other consumer call fetchCatalog() and stay unaware of the transport.
+//
+// Static site (orders disabled): there is no backend, so the catalog is served
+// from the bundled STATIC_CATALOG instead.
+
+import { ORDERS_ENABLED } from '../config/features.js'
+import { STATIC_CATALOG } from '../data/staticCatalog.js'
 
 // Base URL for the backend API.
 // Set VITE_API_URL in frontend/.env.local (e.g. VITE_API_URL=http://localhost:3001).
@@ -22,6 +28,8 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''
  *   non-OK HTTP status. Consumers handle this with an error + retry state.
  */
 export async function fetchCatalog() {
+  if (!ORDERS_ENABLED) return STATIC_CATALOG
+
   const res = await fetch(`${API_BASE_URL}/api/catalog`)
 
   if (!res.ok) {

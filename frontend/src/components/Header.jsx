@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import Logo from './Logo.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
+import { AUTH_ENABLED, ORDERS_ENABLED } from '../config/features.js'
 
 // Navigation links.
 // - `to`   : internal SPA route → rendered as <Link> (no full-page reload).
@@ -117,7 +118,7 @@ export default function Header() {
 
         {/* Auth control — reflects the session state.
             While loading we render nothing to avoid flashing the wrong control. */}
-        {!loading && (
+        {AUTH_ENABLED && !loading && (
           isAuthenticated ? (
             <>
               {user?.role === 'ADMIN' && (
@@ -140,7 +141,9 @@ export default function Header() {
       </nav>
 
       <div className="header-actions">
-        <Link className="btn btn-outline" to="/hacer-pedido">Hacer pedido</Link>
+        {ORDERS_ENABLED && (
+          <Link className="btn btn-outline" to="/hacer-pedido">Hacer pedido</Link>
+        )}
         <Link className="btn btn-solid" to="/reservar">Reservar</Link>
       </div>
 

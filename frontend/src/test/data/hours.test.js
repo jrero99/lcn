@@ -111,14 +111,24 @@ describe('getSlotsForDay', () => {
     expect(slots.length).toBe(12)
   })
 
-  test('returns correct slots for Sunday (split schedule)', () => {
-    const slots = getSlotsForDay(0)
-    // Morning: 11:00 to 15:30 = 10 slots; Evening: 19:00 to 23:30 = 10 slots; total = 20
-    expect(slots[0]).toBe('11:00')
+  test('returns correct slots for Saturday (12:00-16:00 / 18:45-24:00)', () => {
+    const slots = getSlotsForDay(6)
+    // Morning: 12:00 to 15:30 = 8 slots; Evening: 18:45 to 23:15 = 10 slots; total = 18
+    expect(slots[0]).toBe('12:00')
     expect(slots).toContain('15:30')
-    expect(slots).toContain('19:00')
-    expect(slots[slots.length - 1]).toBe('23:30')
-    expect(slots.length).toBe(20)
+    expect(slots).toContain('18:45')
+    expect(slots[slots.length - 1]).toBe('23:15')
+    expect(slots.length).toBe(18)
+  })
+
+  test('returns correct slots for Sunday (12:00-16:00 / 18:45-23:30)', () => {
+    const slots = getSlotsForDay(0)
+    // Morning: 12:00 to 15:30 = 8 slots; Evening: 18:45 to 22:45 = 9 slots; total = 17
+    expect(slots[0]).toBe('12:00')
+    expect(slots).toContain('15:30')
+    expect(slots).toContain('18:45')
+    expect(slots[slots.length - 1]).toBe('22:45')
+    expect(slots.length).toBe(17)
   })
 
   test('last slot is 30 minutes before close', () => {

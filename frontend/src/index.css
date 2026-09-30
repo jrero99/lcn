@@ -306,6 +306,10 @@ img.media-box {
   object-fit: cover;
   display: block;
 }
+/* Landscape kitchen photo cropped to a square: keep hand + burger centred. */
+img.work-photo {
+  object-position: 40% center;
+}
 .work-panel {
   background: #f3f3f3;
   border-radius: 18px;
@@ -987,15 +991,17 @@ img.media-box {
   border-radius: 16px;
   background: var(--bg);
   overflow: hidden;
-  cursor: pointer;
   /* prefers-reduced-motion: only transform/shadow, no entry animation */
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
-.product-card:hover {
+.product-card--interactive {
+  cursor: pointer;
+}
+.product-card--interactive:hover {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.09);
   transform: translateY(-2px);
 }
-.product-card:focus-visible {
+.product-card--interactive:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
@@ -3321,4 +3327,55 @@ img.media-box {
 
   /* Compact pagination */
   .admin-pagination { flex-wrap: wrap; gap: 0.5rem; }
+}
+
+/* ==========================================================================
+   Static site (feature flags off): contact-based Reservas / Trabaja / Carta
+   ========================================================================== */
+
+.reservas-contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.reservas-phone-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  width: auto;
+  text-decoration: none;
+}
+
+.reservas-hours {
+  list-style: none;
+  margin: 0.75rem auto 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+  text-align: center;
+}
+
+.trabaja-email-text {
+  margin: 0 0 1rem;
+  line-height: 1.6;
+}
+
+.trabaja-form a.trabaja-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  text-decoration: none;
+  margin-top: 1rem;
+}
+
+.carta-allergen-note {
+  max-width: 60ch;
+  margin: 2rem auto 1rem;
+  text-align: center;
 }

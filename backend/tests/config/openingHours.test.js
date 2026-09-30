@@ -87,9 +87,13 @@ describe('isWithinOpeningHours', () => {
     expect(isWithinOpeningHours(makeLocalDate(5, 17, 0)).open).toBe(false)
   })
 
-  // Saturday — 11:00–16:00 and 19:00–24:00
-  it('Saturday at 11:00 returns open=true (first range)', () => {
-    expect(isWithinOpeningHours(makeLocalDate(6, 11, 0)).open).toBe(true)
+  // Saturday — 12:00–16:00 and 18:45–24:00
+  it('Saturday at 11:30 returns open=false (before opening)', () => {
+    expect(isWithinOpeningHours(makeLocalDate(6, 11, 30)).open).toBe(false)
+  })
+
+  it('Saturday at 12:00 returns open=true (first range)', () => {
+    expect(isWithinOpeningHours(makeLocalDate(6, 12, 0)).open).toBe(true)
   })
 
   it('Saturday at 15:59 returns open=true', () => {
@@ -104,15 +108,27 @@ describe('isWithinOpeningHours', () => {
     expect(isWithinOpeningHours(makeLocalDate(6, 17, 0)).open).toBe(false)
   })
 
-  it('Saturday at 19:00 returns open=true (second range)', () => {
-    expect(isWithinOpeningHours(makeLocalDate(6, 19, 0)).open).toBe(true)
+  it('Saturday at 18:30 returns open=false (before second range)', () => {
+    expect(isWithinOpeningHours(makeLocalDate(6, 18, 30)).open).toBe(false)
+  })
+
+  it('Saturday at 18:45 returns open=true (second range)', () => {
+    expect(isWithinOpeningHours(makeLocalDate(6, 18, 45)).open).toBe(true)
   })
 
   it('Saturday at 23:59 returns open=true', () => {
     expect(isWithinOpeningHours(makeLocalDate(6, 23, 59)).open).toBe(true)
   })
 
-  // Sunday — 11:00–16:00 and 19:00–24:00
+  // Sunday — 12:00–16:00 and 18:45–23:30
+  it('Sunday at 11:00 returns open=false (before opening)', () => {
+    expect(isWithinOpeningHours(makeLocalDate(0, 11, 0)).open).toBe(false)
+  })
+
+  it('Sunday at 23:30 returns open=false (closes at 23:30)', () => {
+    expect(isWithinOpeningHours(makeLocalDate(0, 23, 30)).open).toBe(false)
+  })
+
   it('Sunday at 12:00 returns open=true', () => {
     expect(isWithinOpeningHours(makeLocalDate(0, 12, 0)).open).toBe(true)
   })

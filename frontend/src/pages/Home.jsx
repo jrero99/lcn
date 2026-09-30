@@ -7,7 +7,7 @@ import cartaCenter from '../assets/carta-center.jpg'
 import cartaRight from '../assets/carta-right.jpg'
 import heroAmbience from '../assets/photos/hero-ambience.jpg'
 import localWall from '../assets/photos/local-wall.jpg'
-import workDining from '../assets/photos/work-dining.jpg'
+import workKitchen from '../assets/photos/work-kitchen.jpg'
 
 export default function Home() {
   const cartaPhotosRef = useRef(null)
@@ -62,9 +62,9 @@ export default function Home() {
       {/* NUESTRA CARTA */}
       <section className="section centered" id="carta">
         <div className="carta-photos" ref={cartaPhotosRef}>
-          <img className="polaroid polaroid-left" src={cartaLeft} alt="Bocadillo de La Casa Nostra" />
-          <img className="polaroid polaroid-center" src={cartaCenter} alt="Plato de la carta de La Casa Nostra" />
-          <img className="polaroid polaroid-right" src={cartaRight} alt="Ración de La Casa Nostra" />
+          <img className="polaroid polaroid-left" src={cartaLeft} alt="Fingers de pollo rebozado con salsa de mostaza y miel" />
+          <img className="polaroid polaroid-center" src={cartaCenter} alt="Bocadillo de pollo con pisto y queso" />
+          <img className="polaroid polaroid-right" src={cartaRight} alt="Mesa con bocadillos, hamburguesas, fingers y hummus de La Casa Nostra" />
         </div>
         <h2 className="section-title">Nuestra carta</h2>
         <p className="section-text">
@@ -117,9 +117,10 @@ export default function Home() {
             <Link className="btn btn-outline" to="/trabaja">Únete al equipo</Link>
           </div>
           <img
-            src={workDining}
-            alt="Sala de La Casa Nostra con mesas vestidas y ambiente acogedor"
-            className="media-box"
+            src={workKitchen}
+            alt="Cocinero de La Casa Nostra terminando una hamburguesa en la cocina"
+            className="media-box work-photo"
+            loading="lazy"
           />
         </div>
       </section>

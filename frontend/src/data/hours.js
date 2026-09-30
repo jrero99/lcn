@@ -18,13 +18,13 @@
  * validation here is UX only.
  */
 export const OPENING_HOURS = {
-  0: [{ open: '11:00', close: '16:00' }, { open: '19:00', close: '24:00' }], // Sunday
+  0: [{ open: '12:00', close: '16:00' }, { open: '18:45', close: '23:30' }], // Sunday
   1: [],                                                  // Monday  — closed
   2: [],                                                  // Tuesday — closed
   3: [{ open: '18:00', close: '23:30' }],               // Wednesday
   4: [{ open: '18:00', close: '23:30' }],               // Thursday
   5: [{ open: '18:00', close: '24:00' }],               // Friday
-  6: [{ open: '11:00', close: '16:00' }, { open: '19:00', close: '24:00' }], // Saturday
+  6: [{ open: '12:00', close: '16:00' }, { open: '18:45', close: '24:00' }], // Saturday
 }
 
 /**
@@ -69,8 +69,8 @@ export function minutesToTime(minutes) {
  * Examples:
  *   Wednesday (3) → ['18:00', '18:30', ..., '23:00']
  *   Friday    (5) → ['18:00', '18:30', ..., '23:30']
- *   Saturday  (6) → ['11:00', ..., '15:30', '19:00', ..., '23:30']
- *   Sunday    (0) → ['11:00', ..., '15:30', '19:00', ..., '23:30']
+ *   Saturday  (6) → ['12:00', ..., '15:30', '18:45', ..., '23:15']
+ *   Sunday    (0) → ['12:00', ..., '15:30', '18:45', ..., '22:45']
  *   Monday    (1) → []
  */
 export function getSlotsForDay(dayIndex) {
@@ -101,5 +101,6 @@ export function getSlotsForDay(dayIndex) {
 export const FOOTER_HOURS = [
   { day: 'Miércoles a jueves', time: '18:00 – 23:30' },
   { day: 'Viernes',            time: '18:00 – 00:00' },
-  { day: 'Sábado y domingo',   time: '11:00 – 16:00 / 19:00 – 00:00' },
+  { day: 'Sábado',             time: '12:00 – 16:00 / 18:45 – 00:00' },
+  { day: 'Domingo',            time: '12:00 – 16:00 / 18:45 – 23:30' },
 ]

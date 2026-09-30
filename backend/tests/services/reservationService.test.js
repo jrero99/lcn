@@ -82,7 +82,7 @@ describe('checkReservationAvailability', () => {
     ).toThrow(expect.objectContaining({ status: 422 }))
   })
 
-  // ── Saturday: 11:00–16:00 and 19:00–24:00 ────────────────────
+  // ── Saturday: 12:00–16:00 and 18:45–24:00 ────────────────────
   it('accepts Saturday at 12:00 (first range)', () => {
     const { date } = futureDate(6, '12:00')
     const result = checkReservationAvailability({ date, time: '12:00', zone, guests })
@@ -102,7 +102,7 @@ describe('checkReservationAvailability', () => {
     expect(result).toEqual({ availableSlots: [] })
   })
 
-  // ── Sunday: 11:00–16:00 and 19:00–24:00 ─────────────────────
+  // ── Sunday: 12:00–16:00 and 18:45–23:30 ─────────────────────
   it('accepts Sunday at 13:00', () => {
     const { date } = futureDate(0, '13:00')
     const result = checkReservationAvailability({ date, time: '13:00', zone, guests })

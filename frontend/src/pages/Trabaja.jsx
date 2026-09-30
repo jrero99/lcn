@@ -1,6 +1,12 @@
 import { useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import Modal from '../components/Modal.jsx'
+import { BUSINESS } from '../data/business.js'
+import { ONLINE_FORMS_ENABLED } from '../config/features.js'
+
+const JOBS_MAILTO = `mailto:${BUSINESS.email}?subject=${encodeURIComponent(
+  'Candidatura - Trabaja con nosotros'
+)}`
 
 // Inline SVG icons — aria-hidden, labels carry the accessible name.
 function PersonIcon() {
@@ -89,7 +95,46 @@ const INITIAL_FORM = {
   rgpd: false,
 }
 
+// Public static site: there is no backend to receive the CV, so candidates
+// apply by email instead of through a form that would silently drop it.
 export default function Trabaja() {
+  return ONLINE_FORMS_ENABLED ? <TrabajaForm /> : <TrabajaEmail />
+}
+
+function TrabajaEmail() {
+  return (
+    <section className="trabaja-page">
+      <div className="trabaja-hero">
+        <h1 className="trabaja-hero-title">
+          ÚNETE AL EQUIPO<br />DE LA CASA NOSTRA!
+        </h1>
+        <p className="trabaja-hero-sub">
+          Buscamos personas dinámicas, responsables y con ganas de crecer.
+          Envíanos tu CV por email y contactaremos contigo.
+        </p>
+      </div>
+
+      <div className="trabaja-form-wrap">
+        <div className="trabaja-form">
+          <p className="trabaja-email-text">
+            Escríbenos a{' '}
+            <a className="trabaja-rgpd-link" href={JOBS_MAILTO}>{BUSINESS.email}</a>{' '}
+            adjuntando tu CV (PDF, DOC o DOCX), tu nombre y un teléfono de contacto.
+          </p>
+          <p className="trabaja-rgpd-text">
+            Trataremos tus datos solo para procesos de selección, según nuestra{' '}
+            <Link to="/politica-privacidad" className="trabaja-rgpd-link">política de privacidad</Link>.
+          </p>
+          <a className="trabaja-submit-btn" href={JOBS_MAILTO}>
+            Enviar CV por email
+          </a>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function TrabajaForm() {
   const [form, setForm] = useState(INITIAL_FORM)
   const [errors, setErrors] = useState({})
   const [modalOpen, setModalOpen] = useState(false)

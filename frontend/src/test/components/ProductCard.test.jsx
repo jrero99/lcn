@@ -36,6 +36,14 @@ describe('ProductCard', () => {
     expect(onOpen).toHaveBeenCalledWith(product)
   })
 
+  test('interactive={false} renders a static card with no button role or click handler', () => {
+    const onOpen = vi.fn()
+    render(<ProductCard product={product} onAdd={vi.fn()} onOpen={onOpen} interactive={false} />)
+    expect(screen.queryByRole('button', { name: /Ver detalle/i })).toBeNull()
+    fireEvent.click(screen.getByText('Bocadillo de jamón'))
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
   test('"+" button calls onAdd without opening the modal', () => {
     const onAdd = vi.fn()
     const onOpen = vi.fn()

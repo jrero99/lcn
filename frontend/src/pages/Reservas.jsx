@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react'
-import { isOpenDay, closedDayMessage, getSlotsForDay } from '../data/hours.js'
+import { isOpenDay, closedDayMessage, getSlotsForDay, FOOTER_HOURS } from '../data/hours.js'
+import { BUSINESS } from '../data/business.js'
+import { ONLINE_FORMS_ENABLED } from '../config/features.js'
 
 // Mock zones for the restaurant.
 const ZONES = [
@@ -22,9 +24,11 @@ function todayIso() {
 
 const TODAY_ISO = todayIso()
 
-// WhatsApp link — TODO: replace with real phone number once provided by the business.
-// Format: https://wa.me/<country-code><number> (no spaces, no +)
-const WHATSAPP_HREF = 'https://wa.me/34XXXXXXXXX' // TODO: add real number
+// WhatsApp link — number lives in data/business.js (single source of truth).
+const WHATSAPP_HREF = `https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent(
+  'Hola, me gustaría reservar mesa en La Casa Nostra.'
+)}`
+const PHONE_HREF = `tel:${BUSINESS.phone.replace(/\s/g, '')}`
 
 // Returns the JS day-of-week (0=Sunday … 6=Saturday) for a YYYY-MM-DD string.
 // We parse the parts directly to avoid timezone shifts that `new Date(str)` causes.
@@ -34,7 +38,54 @@ function dayOfWeekFromIso(iso) {
   return new Date(y, m - 1, d).getDay()
 }
 
+// Public static site: no backend to take bookings, so we send the customer
+// to phone / WhatsApp instead of showing a form that cannot complete.
 export default function Reservas() {
+  return ONLINE_FORMS_ENABLED ? <ReservasForm /> : <ReservasContact />
+}
+
+function ReservasContact() {
+  return (
+    <section className="reservas">
+      <div className="reservas-inner">
+        <h1 className="reservas-title">Haz tu reserva</h1>
+        <p className="reservas-sub">
+          Reserva tu mesa por teléfono o WhatsApp.<br />
+          Tú tan solo preocúpate de disfrutar
+        </p>
+
+        <div className="reservas-contact-actions">
+          <a
+            className="reservas-whatsapp-btn"
+            href={WHATSAPP_HREF}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Reservar por WhatsApp"
+          >
+            <WhatsAppIcon />
+            WhatsApp
+          </a>
+          <a className="reservas-search-btn reservas-phone-btn" href={PHONE_HREF}>
+            Llamar al {BUSINESS.phone}
+          </a>
+        </div>
+
+        <div className="reservas-divider" role="separator" />
+        <h2 className="reservas-group-text">Horario</h2>
+        <ul className="reservas-hours">
+          {FOOTER_HOURS.map((h) => (
+            <li key={h.day}>
+              <strong>{h.day}</strong> <span>{h.time}</span>
+            </li>
+          ))}
+          <li><strong>Lunes y martes</strong> <span>Cerrado</span></li>
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+function ReservasForm() {
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [zone, setZone] = useState('')

@@ -9,7 +9,9 @@ function formatPrice(price) {
   return price.toFixed(2).replace('.', ',') + ' €'
 }
 
-export default function ProductCard({ product, onAdd, onOpen }) {
+// `interactive` (default true): when false the card is a static, non-clickable
+// block (used by /carta for now); the "+" add button is still rendered.
+export default function ProductCard({ product, onAdd, onOpen, interactive = true }) {
   // Allow keyboard activation of the card itself (Enter / Space)
   function handleCardKeyDown(e) {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -20,12 +22,14 @@ export default function ProductCard({ product, onAdd, onOpen }) {
 
   return (
     <article
-      className="product-card"
-      role="button"
-      tabIndex={0}
-      aria-label={`Ver detalle de ${product.name}`}
-      onClick={() => onOpen(product)}
-      onKeyDown={handleCardKeyDown}
+      className={interactive ? 'product-card product-card--interactive' : 'product-card'}
+      {...(interactive && {
+        role: 'button',
+        tabIndex: 0,
+        'aria-label': `Ver detalle de ${product.name}`,
+        onClick: () => onOpen(product),
+        onKeyDown: handleCardKeyDown,
+      })}
     >
       <div className="product-card-body">
         <h3 className="product-card-name">{product.name}</h3>

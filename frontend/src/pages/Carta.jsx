@@ -1,7 +1,7 @@
 // Carta — read-only catalog page, accessible at /carta.
 //
-// Strategy: reuses OrderCatalog's sub-components (CategoryNav, ProductCard,
-// ProductModal) and the same async data loading via fetchCatalog(). This avoids
+// Strategy: reuses OrderCatalog's sub-components (CategoryNav, ProductCard)
+// and the same async data loading via fetchCatalog(). This avoids
 // duplicating any data-loading logic or catalog markup.
 //
 // OrderCatalog itself is NOT reused here (it's tightly coupled to the order flow:
@@ -13,8 +13,8 @@
 //   - Anonymous  → read-only view. "+ " button and checkout bar are hidden.
 //                  A sticky CTA banner ("Inicia sesión para hacer tu pedido")
 //                  is shown instead of the checkout bar.
-//                  ProductModal opens but shows NO "Añadir al pedido" button.
-//   - Logged in  → interactive: "+ " buttons and ProductModal "Añadir" are active.
+//                  Product cards are NOT clickable (product modal disabled for now).
+//   - Logged in  → "+ " buttons are active (cards themselves are not clickable).
 //                  A CheckoutBar is shown at the bottom.
 //                  On checkout, the user is sent to /hacer-pedido/datos?mode=domicilio
 //                  (domicilio is the sensible default; the datos form lets them switch).
@@ -29,9 +29,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { fetchCatalog } from '../services/catalogService.js'
 import { formatAllergens } from '../data/allergens.js'
 import { useAuth } from '../context/AuthContext.jsx'
+import { ORDERS_ENABLED } from '../config/features.js'
 import CategoryNav from '../components/CategoryNav.jsx'
 import ProductCard from '../components/ProductCard.jsx'
-import ProductModal from '../components/ProductModal.jsx'
 import CheckoutBar from '../components/CheckoutBar.jsx'
 
 export default function Carta() {
@@ -46,9 +46,6 @@ export default function Carta() {
 
   // Cart state — only meaningful when isAuthenticated
   const [cart, setCart] = useState({})
-
-  // Product detail modal
-  const [selectedProduct, setSelectedProduct] = useState(null)
 
   const sectionRefs = useRef({})
 
@@ -90,14 +87,6 @@ export default function Carta() {
         },
       }
     })
-  }, [])
-
-  const handleOpenProduct = useCallback((product) => {
-    setSelectedProduct(product)
-  }, [])
-
-  const handleCloseModal = useCallback(() => {
-    setSelectedProduct(null)
   }, [])
 
   const handleCategorySelect = useCallback((categoryId) => {
@@ -208,7 +197,7 @@ export default function Carta() {
                       key={product.id}
                       product={product}
                       onAdd={handleAddToCart}
-                      onOpen={handleOpenProduct}
+                      interactive={false} // TODO: re-enable product modal (ProductModal + onOpen)
                     />
                   )
                   : (
@@ -216,17 +205,22 @@ export default function Carta() {
                     <ReadOnlyProductCard
                       key={product.id}
                       product={product}
-                      onOpen={handleOpenProduct}
                     />
                   )
               ))}
             </div>
           </section>
         ))}
+
+        <p className="catalog-status-hint carta-allergen-note">
+          Si tienes alguna alergia o intolerancia alimentaria, consulta a nuestro
+          personal antes de pedir. Precios con IVA incluido.
+        </p>
       </div>
 
-      {/* Bottom area: checkout bar (logged in) vs login CTA banner (anonymous) */}
-      {isAuthenticated ? (
+      {/* Bottom area: checkout bar (logged in) vs login CTA banner (anonymous).
+          Static site (orders disabled): neither — the menu is read-only. */}
+      {!ORDERS_ENABLED ? null : isAuthenticated ? (
         <CheckoutBar
           mode="domicilio"
           total={cartTotal}
@@ -243,45 +237,20 @@ export default function Carta() {
           </Link>
         </div>
       )}
-
-      {/* Product detail modal */}
-      {selectedProduct && (
-        <ProductModal
-          product={selectedProduct}
-          onClose={handleCloseModal}
-          // If anonymous: pass a no-op for onAdd and hide the add button via readOnly prop
-          onAdd={isAuthenticated ? handleAddToCart : () => {}}
-          readOnly={!isAuthenticated}
-        />
-      )}
     </div>
   )
 }
 
 // ReadOnlyProductCard — like ProductCard but without the "+" button.
 // Used on /carta when the user is not logged in.
-// Clicking opens the ProductModal (also in read-only mode).
-function ReadOnlyProductCard({ product, onOpen }) {
+// Static (not clickable) for now: the product modal is disabled on /carta.
+function ReadOnlyProductCard({ product }) {
   function formatPrice(price) {
     return price.toFixed(2).replace('.', ',') + ' €'
   }
 
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      onOpen(product)
-    }
-  }
-
   return (
-    <article
-      className="product-card"
-      role="button"
-      tabIndex={0}
-      aria-label={`Ver detalle de ${product.name}`}
-      onClick={() => onOpen(product)}
-      onKeyDown={handleKeyDown}
-    >
+    <article className="product-card">
       <div className="product-card-body">
         <h3 className="product-card-name">{product.name}</h3>
         <p className="product-card-desc">{product.description}</p>
