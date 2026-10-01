@@ -20,3 +20,6 @@ coverage/
 
 # OS
 .DS_Store
+
+# Firebase CLI cache
+.firebase/
