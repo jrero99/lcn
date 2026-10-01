@@ -106,7 +106,7 @@ export default function Home() {
 
       {/* TRABAJA CON NOSOTROS */}
       <section className="section" id="trabaja">
-        <div className="two-cols">
+        <div className="two-cols work-cols">
           <div className="work-panel">
             <h2 className="section-title work-title">Trabaja con nosotros</h2>
             <p className="work-lead">¿Te gusta el buen comer y el trato cercano?</p>

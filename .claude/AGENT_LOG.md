@@ -1674,3 +1674,8 @@ TURNSTILE_SECRET_KEY       # Cloudflare Turnstile (si enabled)
 - **Qué cambió**: `index.css` ocultaba `.header-actions .btn-solid` a ≤520px siempre y el menú hamburguesa no tenía CTA. Ahora el botón del header solo se oculta a ≤520px si hay dos CTAs (`.header-actions--two`, cuando `ORDERS_ENABLED`); en modo estático sigue visible. `Header.jsx` añade `Link.nav-cta` ("Reservar mesa", 44px) dentro del menú, visible solo a ≤520px. No es un feature flag.
 - **Impacto**: Ninguno en backend/contratos.
 - **Acción requerida**: Ninguna.
+
+### [2026-10-01] frontend-react — Home: bloque "Trabaja con nosotros" alineado al diseño
+- **Qué cambió**: `Home.jsx` añade clase `work-cols` al grid del bloque. `index.css`: `.work-cols` centra la tarjeta verticalmente respecto a la foto (`align-items: center`, max-width 960px centrado); `.work-panel` fondo `#f1f1f1` y radio 16px; `img.work-photo` radio 12px. Apilado a ≤860px sin cambios (regla `.two-cols`).
+- **Impacto**: Ninguno en backend/contratos.
+- **Acción requerida**: Ninguna.
