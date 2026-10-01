@@ -104,7 +104,7 @@ h1, h2, h3, h4 {
 }
 .nav-link {
   font-family: var(--font-heading);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-decoration: none;
@@ -123,7 +123,7 @@ h1, h2, h3, h4 {
    reads as a status, not a link. */
 .nav-user {
   font-family: var(--font-heading);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--brand);
@@ -2540,7 +2540,7 @@ img.work-photo {
     width: 100%;
     padding: 0.85rem 0;
     border-bottom: 1px solid #f0ece6;
-    font-size: 0.9rem;
+    font-size: 1rem;
   }
   .header-nav .nav-link:last-child {
     border-bottom: none;
