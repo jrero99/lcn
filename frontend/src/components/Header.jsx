@@ -138,9 +138,14 @@ export default function Header() {
             <Link className="nav-link" to="/login">Iniciar Sesión</Link>
           )
         )}
+
+        {/* Reservation CTA inside the mobile menu (≤520px only, via CSS).
+            On the smallest screens the header button is hidden when it would
+            not fit next to "Hacer pedido", so the menu always offers it. */}
+        <Link className="btn btn-solid nav-cta" to="/reservar">Reservar mesa</Link>
       </nav>
 
-      <div className="header-actions">
+      <div className={`header-actions${ORDERS_ENABLED ? ' header-actions--two' : ''}`}>
         {ORDERS_ENABLED && (
           <Link className="btn btn-outline" to="/hacer-pedido">Hacer pedido</Link>
         )}

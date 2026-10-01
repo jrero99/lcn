@@ -130,6 +130,8 @@ h1, h2, h3, h4 {
   white-space: nowrap;
 }
 .header-actions { display: flex; gap: 0.6rem; }
+/* Reservation CTA inside the nav: only used in the mobile menu (≤520px). */
+.nav-cta { display: none; }
 
 /* Hamburger button: hidden on desktop, shown by media query */
 .header-hamburger { display: none; }
@@ -2662,9 +2664,19 @@ img.work-photo {
   /* Nav links: slightly larger tap targets */
   .header-nav .nav-link { padding: 1rem 0; }
 
-  /* Hide "Reservar" button on smallest screens to save space;
-     only keep "Hacer pedido" as primary CTA */
-  .header-actions .btn-solid { display: none; }
+  /* When both CTAs are shown ("Hacer pedido" + "Reservar") they do not fit
+     next to the logo and hamburger at 360px: hide the header "Reservar" and
+     offer it inside the hamburger menu instead (.nav-cta). With only one CTA
+     (static mode) it stays visible in the header. */
+  .header-actions--two .btn-solid { display: none; }
+  .header-nav .nav-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    width: 100%;
+    margin: 0.75rem 0 0.25rem;
+  }
 
   /* Polaroids: reduce rotation so they stay within viewport */
   .carta-photos { gap: 0.2rem; flex-wrap: nowrap; }

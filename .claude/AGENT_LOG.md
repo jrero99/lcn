@@ -1669,3 +1669,8 @@ TURNSTILE_SECRET_KEY       # Cloudflare Turnstile (si enabled)
 - **Qué cambió**: Nuevas `pages/NotFound.jsx` (404, ruta catch-all `*` dentro de Header/Footer; sustituye al antiguo redirect a `/`), `components/ErrorBoundary.jsx` (envuelve `<Routes>` en `App.jsx`; fallback con "Recargar" y sin detalles del error salvo en DEV) y `components/ErrorLayout.jsx` (shell compartido; título del documento + foco al h1). CTA a `/hacer-pedido` solo si `ORDERS_ENABLED`, si no a `/carta`. Estilos `.error-*` en `index.css`. Tests en `src/test/pages/NotFound.test.jsx`; `staticSite.test.jsx` ahora espera 404 en rutas desactivadas.
 - **Impacto**: Ninguno en backend/contratos. URLs desconocidas ya no redirigen a home.
 - **Acción requerida**: Ninguna.
+
+### [2026-10-01] frontend-react — Fix: botón Reservar invisible en móvil
+- **Qué cambió**: `index.css` ocultaba `.header-actions .btn-solid` a ≤520px siempre y el menú hamburguesa no tenía CTA. Ahora el botón del header solo se oculta a ≤520px si hay dos CTAs (`.header-actions--two`, cuando `ORDERS_ENABLED`); en modo estático sigue visible. `Header.jsx` añade `Link.nav-cta` ("Reservar mesa", 44px) dentro del menú, visible solo a ≤520px. No es un feature flag.
+- **Impacto**: Ninguno en backend/contratos.
+- **Acción requerida**: Ninguna.
