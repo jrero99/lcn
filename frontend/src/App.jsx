@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import { AUTH_ENABLED, ORDERS_ENABLED } from './config/features.js'
 import ScrollToTop from './components/ScrollToTop.jsx'
 import Header from './components/Header.jsx'
@@ -19,6 +19,8 @@ import PoliticaCookies from './pages/PoliticaCookies.jsx'
 import CondicionesVenta from './pages/CondicionesVenta.jsx'
 import MisDirecciones from './pages/MisDirecciones.jsx'
 import AdminOffice from './pages/AdminOffice.jsx'
+import NotFound from './pages/NotFound.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 
 // Flujo de pedido (los datos se piden ANTES del catálogo, porque la barra de
@@ -31,7 +33,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx'
 //
 // Feature flags (src/config/features.js): on the public static site the order
 // flow, auth and account/admin pages are NOT registered; any unknown URL
-// (including those) redirects to "/".
+// (including those) renders the 404 page.
 
 // PublicLayout — wraps public pages with the shared Header + Footer.
 function PublicLayout({ children }) {
@@ -46,7 +48,7 @@ function PublicLayout({ children }) {
 
 export default function App() {
   return (
-    <>
+    <ErrorBoundary>
       <ScrollToTop />
       <Routes>
         {/* ── Admin backoffice ────────────────────────────────────────────────── */}
@@ -110,9 +112,9 @@ export default function App() {
         <Route path="/politica-cookies" element={<PublicLayout><PoliticaCookies /></PublicLayout>} />
         <Route path="/condiciones-venta" element={<PublicLayout><CondicionesVenta /></PublicLayout>} />
 
-        {/* Unknown or disabled routes → home */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Unknown or disabled routes → 404 */}
+        <Route path="*" element={<PublicLayout><NotFound /></PublicLayout>} />
       </Routes>
-    </>
+    </ErrorBoundary>
   )
 }

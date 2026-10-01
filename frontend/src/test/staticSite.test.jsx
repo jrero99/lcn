@@ -56,10 +56,11 @@ describe('static site — navigation', () => {
   })
 
   test.each(['/login', '/registro', '/hacer-pedido', '/hacer-pedido/confirmar', '/mis-direcciones', '/adminoffice', '/no-existe'])(
-    '%s redirects to home',
+    '%s shows the 404 page',
     async (path) => {
       renderWithProviders(<App />, { initialEntries: [path] })
-      expect(await screen.findByRole('heading', { level: 1, name: 'La Casa Nostra' })).toBeInTheDocument()
+      expect(await screen.findByRole('heading', { level: 1, name: /sin pan/i })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Ver la carta' })).toHaveAttribute('href', '/carta')
     },
   )
 })

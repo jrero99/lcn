@@ -1664,3 +1664,8 @@ TURNSTILE_SECRET_KEY       # Cloudflare Turnstile (si enabled)
 - **Qué cambió**: En `/carta` las tarjetas ya no abren `ProductModal` (sin role/tabIndex/onClick/onKeyDown, sin hover/cursor pointer). `ProductCard` recibe prop `interactive` (default `true`; OrderCatalog intacto); CSS hover/focus/cursor movido a `.product-card--interactive`. Quitados de `Carta.jsx` el import y estado del modal. Para revertir: quitar `interactive={false}`, pasar `onOpen`, y restaurar estado + `<ProductModal>` en Carta.
 - **Impacto**: Ninguno en backend/contratos.
 - **Acción requerida**: Ninguna.
+
+### [2026-10-01] frontend-react — Página 404 y fallback de errores
+- **Qué cambió**: Nuevas `pages/NotFound.jsx` (404, ruta catch-all `*` dentro de Header/Footer; sustituye al antiguo redirect a `/`), `components/ErrorBoundary.jsx` (envuelve `<Routes>` en `App.jsx`; fallback con "Recargar" y sin detalles del error salvo en DEV) y `components/ErrorLayout.jsx` (shell compartido; título del documento + foco al h1). CTA a `/hacer-pedido` solo si `ORDERS_ENABLED`, si no a `/carta`. Estilos `.error-*` en `index.css`. Tests en `src/test/pages/NotFound.test.jsx`; `staticSite.test.jsx` ahora espera 404 en rutas desactivadas.
+- **Impacto**: Ninguno en backend/contratos. URLs desconocidas ya no redirigen a home.
+- **Acción requerida**: Ninguna.
