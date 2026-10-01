@@ -24,7 +24,7 @@ export default function AvisoLegal() {
         <li><strong>Domicilio:</strong> {BUSINESS.address}</li>
         <li><strong>Correo electrónico:</strong> {BUSINESS.email}</li>
         <li><strong>Teléfono:</strong> {BUSINESS.phone}</li>
-        <li><strong>Datos registrales:</strong> {BUSINESS.registry}</li>
+        {BUSINESS.registry && <li><strong>Datos registrales:</strong> {BUSINESS.registry}</li>}
         <li><strong>Sitio web:</strong> {BUSINESS.domain}</li>
       </ul>
 

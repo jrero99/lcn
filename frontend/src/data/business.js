@@ -6,11 +6,11 @@
 export const BUSINESS = {
   // Denominación legal: nombre y apellidos si es autónomo, o razón social si es
   // sociedad (p. ej. "Bocadillería La Casa Nostra, S.L.").
-  legalName: '[RAZÓN SOCIAL O NOMBRE Y APELLIDOS DEL TITULAR]',
+  legalName: 'Moisés Calvillo Castro',
   // Nombre comercial.
   tradeName: 'La Casa Nostra',
   // NIF (autónomo) o CIF (sociedad).
-  nif: '[NIF / CIF]',
+  nif: '38834711Q',
   // Domicilio fiscal / del establecimiento.
   address: 'Ronda de Sant Oleguer, 31, Bajos 1, 08304 Mataró, Barcelona',
   // Email de contacto para clientes y para ejercer derechos RGPD.
@@ -20,7 +20,7 @@ export const BUSINESS = {
   // Mismo número en formato wa.me: código de país + número, sin espacios ni "+".
   whatsapp: '34614522581',
   // Solo si es sociedad mercantil (S.L., S.A.…). Déjalo vacío si es autónomo.
-  registry: '[DATOS DE INSCRIPCIÓN EN EL REGISTRO MERCANTIL — solo sociedades]',
+  registry: '',
   // Dominio donde se publica la web (sin https://), p. ej. 'lacasanostramataro.com'.
   domain: 'lacasanostragrup.com',
 }
