@@ -5,7 +5,7 @@ import localPhoto from '../assets/photos/local-entrance.jpg'
 import cartaLeft from '../assets/carta-left.jpg'
 import cartaCenter from '../assets/carta-center.jpg'
 import cartaRight from '../assets/carta-right.jpg'
-import heroAmbience from '../assets/photos/hero-ambience.jpg'
+import heroPhoto from '../assets/photos/hero-table.jpg'
 import localWall from '../assets/photos/local-wall.jpg'
 import workKitchen from '../assets/photos/work-kitchen.jpg'
 
@@ -43,8 +43,8 @@ export default function Home() {
         </p>
         <img
           className="hero-media"
-          src={heroAmbience}
-          alt="Mesa de La Casa Nostra con mantel de cuadros y la carta de la casa"
+          src={heroPhoto}
+          alt="Bocadillos y patatas con salsa sobre mantel de cuadros en La Casa Nostra"
         />
       </section>
 
