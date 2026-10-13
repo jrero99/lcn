@@ -22,6 +22,8 @@ import AdminOffice from './pages/AdminOffice.jsx'
 import NotFound from './pages/NotFound.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
+import Seo from './components/Seo.jsx'
+import { SEO } from './data/seo.js'
 
 // Flujo de pedido (los datos se piden ANTES del catálogo, porque la barra de
 // checkout muestra la dirección durante la navegación):
@@ -36,9 +38,11 @@ import ProtectedRoute from './components/ProtectedRoute.jsx'
 // (including those) renders the 404 page.
 
 // PublicLayout — wraps public pages with the shared Header + Footer.
-function PublicLayout({ children }) {
+// `seo` = metadatos de la ruta (ver src/data/seo.js).
+function PublicLayout({ children, seo }) {
   return (
     <>
+      <Seo {...seo} />
       <Header />
       <main>{children}</main>
       <Footer />
@@ -60,6 +64,7 @@ export default function App() {
             path="/adminoffice"
             element={
               <ProtectedRoute requireAdmin>
+                <Seo {...SEO.admin} />
                 <AdminOffice />
               </ProtectedRoute>
             }
@@ -68,52 +73,52 @@ export default function App() {
 
         {/* ── Public routes (wrapped in shared Header + Footer) ──────────────── */}
 
-        <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
+        <Route path="/" element={<PublicLayout seo={SEO.home}><Home /></PublicLayout>} />
 
         {/* Read-only catalog — accessible to everyone; interactive only when logged in */}
-        <Route path="/carta" element={<PublicLayout><Carta /></PublicLayout>} />
+        <Route path="/carta" element={<PublicLayout seo={SEO.carta}><Carta /></PublicLayout>} />
 
         {ORDERS_ENABLED && (
           <>
-            <Route path="/hacer-pedido" element={<PublicLayout><HacerPedido /></PublicLayout>} />
+            <Route path="/hacer-pedido" element={<PublicLayout seo={SEO.hacerPedido}><HacerPedido /></PublicLayout>} />
 
             {/* Step 2: product catalog + cart */}
-            <Route path="/hacer-pedido/recoger" element={<PublicLayout><OrderCatalog mode="recoger" /></PublicLayout>} />
-            <Route path="/hacer-pedido/domicilio" element={<PublicLayout><OrderCatalog mode="domicilio" /></PublicLayout>} />
+            <Route path="/hacer-pedido/recoger" element={<PublicLayout seo={SEO.pedidoCatalogo}><OrderCatalog mode="recoger" /></PublicLayout>} />
+            <Route path="/hacer-pedido/domicilio" element={<PublicLayout seo={SEO.pedidoCatalogo}><OrderCatalog mode="domicilio" /></PublicLayout>} />
 
             {/* Step 1.5: address/timing/age form (mode via ?mode=) */}
-            <Route path="/hacer-pedido/datos" element={<PublicLayout><PedidoDatos /></PublicLayout>} />
+            <Route path="/hacer-pedido/datos" element={<PublicLayout seo={SEO.pedidoDatos}><PedidoDatos /></PublicLayout>} />
 
             {/* Step 3: confirmation (pago contra reembolso) */}
-            <Route path="/hacer-pedido/confirmar" element={<PublicLayout><OrderConfirmation /></PublicLayout>} />
+            <Route path="/hacer-pedido/confirmar" element={<PublicLayout seo={SEO.pedidoConfirmar}><OrderConfirmation /></PublicLayout>} />
           </>
         )}
 
         {/* Reservations — step 1: date/time/zone/guests form */}
-        <Route path="/reservar" element={<PublicLayout><Reservas /></PublicLayout>} />
+        <Route path="/reservar" element={<PublicLayout seo={SEO.reservar}><Reservas /></PublicLayout>} />
 
         {/* Jobs application form */}
-        <Route path="/trabaja" element={<PublicLayout><Trabaja /></PublicLayout>} />
+        <Route path="/trabaja" element={<PublicLayout seo={SEO.trabaja}><Trabaja /></PublicLayout>} />
 
         {AUTH_ENABLED && (
           <>
             {/* Auth pages */}
-            <Route path="/login" element={<PublicLayout><Login /></PublicLayout>} />
-            <Route path="/registro" element={<PublicLayout><Registro /></PublicLayout>} />
+            <Route path="/login" element={<PublicLayout seo={SEO.login}><Login /></PublicLayout>} />
+            <Route path="/registro" element={<PublicLayout seo={SEO.registro}><Registro /></PublicLayout>} />
 
             {/* Account pages (require login — guard is inside the page component) */}
-            <Route path="/mis-direcciones" element={<PublicLayout><MisDirecciones /></PublicLayout>} />
+            <Route path="/mis-direcciones" element={<PublicLayout seo={SEO.misDirecciones}><MisDirecciones /></PublicLayout>} />
           </>
         )}
 
         {/* Páginas legales (texto informativo) */}
-        <Route path="/aviso-legal" element={<PublicLayout><AvisoLegal /></PublicLayout>} />
-        <Route path="/politica-privacidad" element={<PublicLayout><PoliticaPrivacidad /></PublicLayout>} />
-        <Route path="/politica-cookies" element={<PublicLayout><PoliticaCookies /></PublicLayout>} />
-        <Route path="/condiciones-venta" element={<PublicLayout><CondicionesVenta /></PublicLayout>} />
+        <Route path="/aviso-legal" element={<PublicLayout seo={SEO.avisoLegal}><AvisoLegal /></PublicLayout>} />
+        <Route path="/politica-privacidad" element={<PublicLayout seo={SEO.politicaPrivacidad}><PoliticaPrivacidad /></PublicLayout>} />
+        <Route path="/politica-cookies" element={<PublicLayout seo={SEO.politicaCookies}><PoliticaCookies /></PublicLayout>} />
+        <Route path="/condiciones-venta" element={<PublicLayout seo={SEO.condicionesVenta}><CondicionesVenta /></PublicLayout>} />
 
         {/* Unknown or disabled routes → 404 */}
-        <Route path="*" element={<PublicLayout><NotFound /></PublicLayout>} />
+        <Route path="*" element={<PublicLayout seo={SEO.notFound}><NotFound /></PublicLayout>} />
       </Routes>
     </ErrorBoundary>
   )

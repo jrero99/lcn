@@ -1,0 +1,15 @@
+{
+  "name": "La Casa Nostra",
+  "short_name": "La Casa Nostra",
+  "description": "Bocadillería en Mataró: carta, pedido online y reserva de mesa.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#7A020E",
+  "background_color": "#7A020E",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
